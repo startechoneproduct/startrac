@@ -369,7 +369,7 @@ export function Docs() {
             <H3>Create your own account</H3>
             <Steps
               items={[
-                ["Register", "Choose a plan to try, enter your details and name your business. Your email and phone can be verified with a short code (email via Resend, SMS via Termii when configured)."],
+                ["Register", "Choose a plan to try, enter your details and name your business. Your email and phone can be verified with a short code (email over SMTP, Gmail by default; SMS via Termii when configured)."],
                 ["Pick your business type", `Select the trade closest to yours (${types.length} available). StarTrack pre-loads the right categories, terminology, optional features and trade-specific tools.`],
                 ["Take the product tour", "The first time you open the dashboard a short guided tour points out the sidebar, New Sale, dashboard tabs, search, alerts, settings and help. You can replay it any time from the button beside Refresh."],
                 ["Add your products", "Add items one by one, or import a spreadsheet. On Pro and above, the AI reads your file, maps the columns and shows a preview you approve before anything is created."],
@@ -676,7 +676,7 @@ export function Docs() {
                 "Expiry — stock nearing or past its date.",
                 "Returns waiting — a return needs a manager's decision.",
                 "A notification bell in the header collects these in-app.",
-                "Email alerts through Resend, with a choice of who else hears them.",
+                "Email alerts over SMTP (Gmail by default), with a choice of who else hears them.",
                 "Gym renewal reminders by SMS (opt-in).",
                 "Each alert type can be switched on or off under Settings → Alerts.",
               ]}
@@ -917,7 +917,7 @@ export function Docs() {
                 ["API", "Node.js 20+, Express, Zod validation, JWT sessions"],
                 ["Database", "MongoDB through Mongoose"],
                 ["Files & media", "Cloudinary for images; PDFKit and ExcelJS for reports; QR and barcode generation and scanning in the browser"],
-                ["Messaging", "Resend (email) and Termii (SMS)"],
+                ["Messaging", "SMTP / Gmail (email) and Termii (SMS)"],
                 ["Payments", "Paystack"],
                 ["Hosting", "Static client plus a serverless API function on Netlify, or a single Node process on Render"],
               ]}

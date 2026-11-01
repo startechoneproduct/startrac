@@ -6,6 +6,8 @@ import { Return } from "#modules/returns/return.model.js";
 import { Notification } from "#modules/alerts/notification.model.js";
 import { raise, resolve, resolveByPrefix, keys } from "#modules/alerts/notify.js";
 import { sendMail, emailShell, alertRow, mailEnabled, esc } from "#core/mailer.js";
+import { ownerOf, realEmail } from "#core/ownerMail.js";
+import { runBillingNotices } from "#modules/billing/billingNotices.js";
 import { sendSms } from "#core/sms.js";
 import { config } from "#core/config.js";
 import { aiEnabled } from "#core/ai.js";
@@ -52,6 +54,7 @@ export async function afterStockChange(ctx, branchId, productIds) {
     const stockBy = new Map(levels.map((l) => [String(l.productId), l.stock]));
     const where = branch?.name ? ` at ${branch.name}` : "";
 
+    let urgent = false;
     for (const p of products) {
       // Made-to-order items hold no stock of their own — their components do.
       if (p.archetype === "made_to_order" || p.status !== "active") continue;
@@ -60,7 +63,7 @@ export async function afterStockChange(ctx, branchId, productIds) {
       const reorder = p.reorderLevel ?? 0;
 
       if (stock <= 0 && prefs.outOfStock !== false) {
-        await raise(
+        const { isNew } = await raise(
           { accountId: ctx.accountId, businessId: ctx.businessId, branchId },
           {
             type: "stock_out",
@@ -72,6 +75,7 @@ export async function afterStockChange(ctx, branchId, productIds) {
             data: { stock, reorderLevel: reorder, branchName: branch?.name || "" },
           }
         );
+        if (isNew) urgent = true;
       } else if (stock > 0 && stock <= reorder && prefs.lowStock !== false) {
         await raise(
           { accountId: ctx.accountId, businessId: ctx.businessId, branchId },
@@ -90,6 +94,7 @@ export async function afterStockChange(ctx, branchId, productIds) {
         await resolve(ctx.businessId, key);
       }
     }
+    if (urgent && business) digestSoon(business);
   } catch (err) {
     console.error("stock alert check failed:", err.message);
   }
@@ -318,6 +323,38 @@ export async function resolveReturnPending(businessId, returnId) {
 const TYPE_ORDER = { stock_out: 0, expired: 1, stock_low: 2, expiry_soon: 3, return_pending: 4, perm_changed: 5 };
 
 /**
+ * Who hears about alerts: the addresses the owner listed in Settings. If none are
+ * listed, the owner's own email, so a new shop gets its stock alerts without
+ * having to find that setting first.
+ */
+async function digestRecipients(business) {
+  const listed = alertRecipients(business);
+  if (listed.length) return listed;
+  const owner = await ownerOf(business.accountId);
+  return owner && realEmail(owner.email) ? [owner.email.toLowerCase()] : [];
+}
+
+// Something urgent (an item just ran out) shouldn't sit until the next sweep. A short wait gathers
+// whatever else came up at the same time, and one email goes out. One pending wait per business.
+const digestTimers = new Map();
+export function digestSoon(business) {
+  const key = String(business._id);
+  const delay = config.alertDigestDelayMs;
+  if (!mailEnabled() || !(delay > 0) || digestTimers.has(key)) return;
+  const t = setTimeout(async () => {
+    digestTimers.delete(key);
+    try {
+      const fresh = await Business.findById(key);
+      if (fresh) await sendDigest(fresh);
+    } catch (err) {
+      console.error("quick alert email failed:", err.message);
+    }
+  }, delay);
+  t.unref?.();
+  digestTimers.set(key, t);
+}
+
+/**
  * Emails everything raised since the last digest as ONE message.
  *
  * The legacy app sent a separate email per alert, which meant a busy Saturday
@@ -327,14 +364,15 @@ const TYPE_ORDER = { stock_out: 0, expired: 1, stock_low: 2, expiry_soon: 3, ret
 export async function sendDigest(business) {
   if (!mailEnabled()) return { sent: false, reason: "not_configured" };
   if (business.settings?.alerts?.email === false) return { sent: false, reason: "disabled" };
-  const to = alertRecipients(business);
+  const to = await digestRecipients(business);
   if (!to.length) return { sent: false, reason: "no_recipients" };
 
   const pending = await Notification.find({
     businessId: business._id,
     status: "open",
     emailedAt: null,
-    type: { $ne: "perm_changed" }, // personal, not an owner's business
+    // Personal ones go to the person, and a new online order is emailed the moment it arrives.
+    type: { $nin: ["perm_changed", "ticket_update", "online_order"] },
   }).sort({ severity: -1, createdAt: 1 });
   if (!pending.length) return { sent: false, reason: "nothing_new" };
 
@@ -434,6 +472,8 @@ export async function runAlertSweep() {
       console.error(`alert sweep failed for ${business.name}:`, err.message);
     }
   }
+  // Plan emails (free days ending, plan ending) ride the same schedule.
+  await runBillingNotices().catch((err) => console.error("billing notices failed:", err.message));
   return results;
 }
 

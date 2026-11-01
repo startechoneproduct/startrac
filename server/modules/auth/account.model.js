@@ -28,6 +28,8 @@ const accountSchema = new mongoose.Schema(
       // The welcome bonus a first Freemium payment earns: a bigger plan, free, until `until`.
       bonus: { type: { _id: false, plan: String, until: Date }, default: undefined },
       bonusUsed: { type: Boolean, default: false },
+      // Plan emails already sent ("paid-ending:2026-12-01"), so each goes out once per period.
+      notices: { type: [String], default: [] },
     },
     status: { type: String, enum: ["active", "suspended"], default: "active" },
     // Throwaway "Try the demo" sandboxes — swept after 24h.

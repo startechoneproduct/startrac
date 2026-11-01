@@ -30,16 +30,20 @@ export const config = {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean),
-  // Outbound email — every kind the app sends (alerts today, whatever comes
-  // next) goes through Resend; see mailer.js. Absent RESEND_API_KEY = email
-  // stays off and alerts stay in-app only, same fallback as before.
-  resend: {
-    apiKey: process.env.RESEND_API_KEY || "",
-    // Resend's own shared testing address — works with no domain setup, but
-    // can only send to the account's own verified email. Set MAIL_FROM to a
-    // "Name <you@yourdomain.com>" address once a sending domain is verified
-    // in the Resend dashboard.
-    from: process.env.MAIL_FROM || "StarTrack <onboarding@resend.dev>",
+  // Outbound email: every kind the app sends (sign-up codes, alerts, invoices,
+  // receipts, password resets) goes through SMTP; see mailer.js. For Gmail use
+  // smtp.gmail.com with your address and a Google "App password" (not your normal
+  // password). Absent SMTP_USER/SMTP_PASS = email stays off, said once at start-up.
+  smtp: {
+    host: process.env.SMTP_HOST || "smtp.gmail.com",
+    port: Number(process.env.SMTP_PORT) || 465,
+    // Port 465 is TLS from the first byte; 587 upgrades with STARTTLS. Left unset it follows the port.
+    secure: process.env.SMTP_SECURE ? process.env.SMTP_SECURE !== "false" : (Number(process.env.SMTP_PORT) || 465) === 465,
+    user: (process.env.SMTP_USER || "").trim(),
+    // Google shows app passwords in groups of four ("abcd efgh ijkl mnop"); the spaces aren't part of it.
+    pass: (process.env.SMTP_PASS || "").replace(/\s+/g, ""),
+    // Gmail only sends as the signed-in address (or an alias set up in Gmail), whatever this says.
+    from: process.env.MAIL_FROM || "",
   },
   // Outbound SMS — phone verification codes and (opt-in) gym renewal
   // reminders go through Termii; see server/core/sms.js. Absent
@@ -87,6 +91,8 @@ export const config = {
   },
   // How often the background sweep looks for expiring stock and unattended
   // returns. Every 6 hours by default; 0 turns the sweep off entirely.
+  // After an urgent alert (something just ran out), wait this long to gather any others, then email once.
+  alertDigestDelayMs: process.env.ALERT_DIGEST_DELAY_MS === undefined ? 60_000 : Number(process.env.ALERT_DIGEST_DELAY_MS),
   alertSweepHours: process.env.ALERT_SWEEP_HOURS === undefined ? 6 : Number(process.env.ALERT_SWEEP_HOURS),
   // The email promoted to platform overseer on boot, so StarTrack always has
   // a way in without editing the database by hand.

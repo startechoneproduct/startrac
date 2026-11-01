@@ -60,7 +60,7 @@ function shapeBusiness(b) {
         smsReminders: b.settings.gym?.smsReminders ?? false,
       },
     },
-    // So the UI can say "email is off because nobody configured Resend"
+    // So the UI can say "email is off because nobody configured SMTP"
     // rather than leaving the owner to wonder why nothing arrives.
     emailConfigured: mailEnabled(),
     aiConfigured: aiEnabled(),

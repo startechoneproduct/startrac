@@ -1,9 +1,17 @@
 import mongoose from "mongoose";
 import { MONGO_URI, assertLocalMongo } from "./env";
-// @ts-expect-error plain JS from the server
-import { applyTransaction } from "../../server/modules/billing/billing.routes.js";
-// @ts-expect-error plain JS from the server
-import { PLANS } from "../../server/shared/plans.js";
+import { SMTP_PORT } from "./smtp";
+
+/**
+ * Server code the tests run directly (taking a payment, the plan-email sweep). It sends mail
+ * itself, so mail is pointed at the pretend server BEFORE it is first loaded.
+ */
+async function server() {
+  Object.assign(process.env, { SMTP_HOST: "127.0.0.1", SMTP_PORT: String(SMTP_PORT), SMTP_SECURE: "false", SMTP_USER: "app@example.test", SMTP_PASS: "test-password", MAIL_FROM: "" });
+  // @ts-expect-error plain JS from the server
+  const [billing, plans, notices] = await Promise.all([import("../../server/modules/billing/billing.routes.js"), import("../../server/shared/plans.js"), import("../../server/modules/billing/billingNotices.js")]);
+  return { applyTransaction: billing.applyTransaction, PLANS: plans.PLANS, runBillingNotices: notices.runBillingNotices };
+}
 
 /**
  * Direct access to the THROWAWAY database, for the two things a browser can't
@@ -71,6 +79,7 @@ const oid = (s: string) => new mongoose.Types.ObjectId(s);
 let payN = 0;
 export async function payFor(accountId: string, plan: "free" | "pro" | "business", over: Record<string, unknown> = {}) {
   await db(); // makes sure the models talk to the test database
+  const { applyTransaction, PLANS } = await server();
   const tx = { status: "success", reference: `test_${Date.now().toString(36)}_${++payN}`, currency: "NGN", amount: PLANS[plan].price * 100, metadata: { plan, accountId }, ...over };
   return applyTransaction(tx) as Promise<{ ok: boolean; reason?: string; already?: boolean; plan?: string }>;
 }
@@ -117,3 +126,14 @@ export async function setVat(businessId: string, rate = 7.5) {
 }
 export const localToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 export const invoiceSale = async (businessId: string, saleNo: string) => (await db()).collection("sales").findOne({ businessId: oid(businessId), saleNo });
+
+/** Runs the pass that sends plan emails (free days ending, plan ending), as the scheduled sweep would. */
+export async function runBillingNoticesNow(): Promise<{ checked: number; sent: number }> {
+  await db();
+  return (await server()).runBillingNotices();
+}
+
+/** Pretend an account was created N days ago (for "hasn't paid yet" reminders). */
+export async function setCreatedDaysAgo(accountId: string, days: number) {
+  await (await db()).collection("accounts").updateOne({ _id: oid(accountId) }, { $set: { createdAt: new Date(Date.now() - days * 864e5) } });
+}

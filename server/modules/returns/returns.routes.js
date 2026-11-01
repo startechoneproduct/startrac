@@ -9,7 +9,7 @@ import { bumpDailyMetric, localDay } from "#modules/metrics/metrics.service.js";
 import { money } from "#core/money.js";
 import { audit } from "#core/audit.js";
 import { withTransaction } from "#core/tx.js";
-import { HttpError, conflict, notFound } from "#core/httpError.js";
+import { conflict, notFound } from "#core/httpError.js";
 import { afterStockChange, raiseReturnPending, resolveReturnPending } from "#modules/alerts/alerts.service.js";
 
 export const returnsRouter = Router();

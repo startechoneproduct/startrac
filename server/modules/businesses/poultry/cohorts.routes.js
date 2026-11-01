@@ -4,7 +4,7 @@ import { Product } from "#modules/products/product.model.js";
 import { StockMovement } from "#modules/inventory/stockMovement.model.js";
 import { Cohort } from "#modules/businesses/poultry/cohort.model.js";
 import { requirePerm, requireBranch } from "#core/middleware/tenant.js";
-import { applyMovement, InsufficientStockError } from "#modules/inventory/inventory.service.js";
+import { applyMovement } from "#modules/inventory/inventory.service.js";
 import { audit } from "#core/audit.js";
 import { afterStockChange } from "#modules/alerts/alerts.service.js";
 

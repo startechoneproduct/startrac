@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { API_PORT, MONGO_URI, OWNER, PRODUCTS, SLUG, assertLocalMongo } from "./support/env";
+import { startFakeSmtp } from "./support/smtp";
 
 /**
  * Builds the world the tests run in: a supermarket owner on the Business plan,
@@ -9,6 +10,7 @@ import { API_PORT, MONGO_URI, OWNER, PRODUCTS, SLUG, assertLocalMongo } from "./
  */
 export default async function globalSetup() {
   assertLocalMongo();
+  const stopSmtp = await startFakeSmtp(); // the app's mail goes here; see support/smtp.ts
   try {
     await mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 6000 });
   } catch {
@@ -56,4 +58,5 @@ export default async function globalSetup() {
   }
 
   await mongoose.disconnect();
+  return stopSmtp; // Playwright runs this once the whole run is over
 }

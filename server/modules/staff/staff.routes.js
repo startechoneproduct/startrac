@@ -1,3 +1,5 @@
+import { config } from "#core/config.js";
+import { emailPerson, realEmail, button } from "#core/ownerMail.js";
 import { Router } from "express";
 import { z } from "zod";
 import crypto from "node:crypto";
@@ -71,28 +73,61 @@ staffRouter.get("/", requirePerm("staff_mgmt"), async (req, res) => {
   });
 });
 
-// GET /api/staff/org-chart — the same team, shaped as a reporting tree.
+// GET /api/staff/org-chart — the whole business as a reporting tree, owner at the top.
 // Purely organizational (see Membership.position/reportsToId); the security
 // role ladder (owner/admin/manager/staff) is unaffected by this view.
+// Everyone is included, whichever branch is selected: it's the company's chart.
+const ROLE_ORDER = { owner: 0, admin: 1, manager: 2, staff: 3 };
 staffRouter.get("/org-chart", requirePerm("staff_mgmt"), async (req, res) => {
-  const memberships = await Membership.find({ ...teamFilter(req), status: "active" });
-  const users = await User.find({ _id: { $in: memberships.map((m) => m.userId) } }).select("name");
+  const memberships = await Membership.find({
+    accountId: req.ctx.accountId, status: "active",
+    $or: [{ businessId: req.ctx.businessId }, { businessId: null }],
+  }).sort({ createdAt: 1 });
+  const [users, branches] = await Promise.all([
+    User.find({ _id: { $in: memberships.map((m) => m.userId) } }).select("name"),
+    Branch.find({ businessId: req.ctx.businessId }).select("name"),
+  ]);
   const userById = new Map(users.map((u) => [String(u._id), u]));
+  const branchById = new Map(branches.map((b) => [String(b._id), b]));
 
   const nodeById = new Map(
     memberships.map((m) => [
       String(m._id),
-      { id: m._id, name: userById.get(String(m.userId))?.name || "", position: m.position || "", role: m.role, children: [] },
+      {
+        id: m._id, name: userById.get(String(m.userId))?.name || "", position: m.position || "", role: m.role,
+        // Owners run every branch (registration just pins theirs to the first), so they read as "All branches".
+        branchName: m.role !== "owner" && m.branchId ? branchById.get(String(m.branchId))?.name || "" : "All branches",
+        inferred: false, children: [],
+      },
     ])
   );
+  const owners = memberships.filter((m) => m.role === "owner");
+  const top = owners.length ? nodeById.get(String(owners[0]._id)) : null;
+
+  // A boss chain that loops back on itself (bad data) is ignored rather than followed forever.
+  const loops = (m) => {
+    let cur = m;
+    for (let i = 0; i < 25 && cur?.reportsToId; i++) {
+      if (String(cur.reportsToId) === String(m._id)) return true;
+      cur = memberships.find((x) => String(x._id) === String(cur.reportsToId));
+    }
+    return false;
+  };
+
   const roots = [];
   for (const m of memberships) {
     const node = nodeById.get(String(m._id));
-    const parent = m.reportsToId && nodeById.get(String(m.reportsToId));
-    if (parent) parent.children.push(node);
-    else roots.push(node);
+    const parent = m.role !== "owner" && m.reportsToId && !loops(m) ? nodeById.get(String(m.reportsToId)) : null;
+    if (parent && parent !== node) parent.children.push(node);
+    else if (m.role !== "owner" && top) { node.inferred = true; top.children.push(node); }
+    else roots.push(node); // an owner (or a team with no owner on record)
   }
-  res.json({ chart: roots });
+  const sortKids = (n) => {
+    n.children.sort((a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9) || a.name.localeCompare(b.name));
+    n.children.forEach(sortKids);
+  };
+  roots.forEach(sortKids);
+  res.json({ chart: roots, total: memberships.length });
 });
 
 // ── Shifts ───────────────────────────────────────────────────
@@ -194,6 +229,18 @@ staffRouter.post("/", requirePerm("staff_mgmt"), async (req, res) => {
     position: d.position,
     reportsToId: d.reportsToId || null,
   });
+
+  // Someone added with a real email is told (never the password: that is the owner's to pass on).
+  if (realEmail(email)) {
+    emailPerson(email, {
+      subject: `You've been added to ${req.ctx.business.name} on StarTrack`,
+      businessName: req.ctx.business.name,
+      heading: `Welcome to ${req.ctx.business.name}`,
+      intro: `${req.ctx.actorName} added you as ${d.role === "admin" ? "an" : "a"} ${d.role}. Sign in with this email address and the password they gave you.`,
+      sections: [config.appUrl ? button(`${config.appUrl.replace(/\/$/, "")}/login`, "Sign in") : ""],
+      footNote: "You are receiving this because someone added you to their StarTrack business.",
+    }).catch(() => {});
+  }
 
   audit(req.ctx, "staff.create", { type: "staff", id: membership._id, label: d.name }, undefined, {
     role: d.role,

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { isPlatformUser, useSession } from "@/lib/session";
 import { BrandMark } from "@/components/brand/BrandMark";
+import { ForgotPassword } from "@/components/auth/ForgotPassword";
 import { cn } from "@/lib/utils";
 
 const KEYPAD_MAX = 4; // a till PIN is exactly four digits
@@ -19,6 +20,7 @@ export function Login() {
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [forgot, setForgot] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -90,6 +92,7 @@ export function Login() {
             <>
               <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" className={inputCls} />
               <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className={inputCls} />
+              <div className="text-right -mt-1"><button type="button" onClick={() => setForgot(true)} className="text-[12px] font-semibold text-primary hover:underline">Forgot password?</button></div>
               <Button type="submit" size="lg" className="w-full mt-2" disabled={busy}>
                 <LockOpen className="w-4 h-4" /> {busy ? "Signing in…" : "Sign In"}
               </Button>
@@ -169,6 +172,7 @@ export function Login() {
 
         <p className="text-[11px] text-t4 mt-6 font-mono">StarTrack · Business OS</p>
       </div>
+      <ForgotPassword open={forgot} initialEmail={email} onClose={() => setForgot(false)} onDone={(e) => { setEmail(e); setPassword(""); setError(""); setForgot(false); }} />
     </div>
   );
 }

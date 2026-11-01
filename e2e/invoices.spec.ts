@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { closeDb, customerDoc, invoiceSale, localToday, metricFor, movementsFor, productInBusiness, salesCount, seedProduct, setTrialEnd, setVat, stockLevel } from "./support/db";
+import { mailTo } from "./support/mailbox";
 import { newOwner, type Owner } from "./support/owner";
 
 /**
@@ -314,12 +315,14 @@ test.describe("Sending", () => {
     expect(r.text).toContain("₦1,500 outstanding");
   });
 
-  test("email says plainly when email isn't set up, and isn't counted as sent", async ({ request }) => {
+  test("email really goes out, with the invoice link, and is counted as sent", async ({ request }) => {
     const { o, inv } = await issuedInv(request);
     const r = await (await post(request, o, `/${inv.id}/send`, { via: "email" })).json();
-    expect(r.email.sent).toBe(false);
-    expect(r.email.reason).toContain("isn't set up");
-    expect(r.invoice.sends).toHaveLength(0);
+    expect(r.email.sent).toBe(true);
+    expect(r.invoice.sends).toHaveLength(1);
+    expect(r.invoice.sends[0]).toMatchObject({ via: "email", to: "ada@example.test" });
+    const mail = await mailTo("ada@example.test", /Invoice INV-0001/);
+    expect(mail.html).toContain(inv.shareUrl);
     expect((await post(request, o, `/${inv.id}/send`, { via: "email", to: "nonsense" })).status()).toBe(400);
   });
 

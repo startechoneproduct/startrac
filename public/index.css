@@ -403,3 +403,21 @@ input:-webkit-autofill:focus {
   font-optical-sizing: auto;
   letter-spacing: -0.01em;
 }
+
+
+/* ── Organization chart: a top-down tree drawn with plain nested lists ─────────
+   Each <li> draws the half-lines above itself that join it to its siblings. */
+.org-tree ul { position: relative; display: flex; justify-content: center; padding: 22px 0 0; margin: 0; }
+.org-tree > ul { padding-top: 0; }
+.org-tree li { position: relative; list-style: none; text-align: center; padding: 22px 8px 0; }
+.org-tree > ul > li { padding-top: 0; }
+.org-tree li::before, .org-tree li::after { content: ""; position: absolute; top: 0; right: 50%; width: 50%; height: 22px; border-top: 1px solid var(--st-border-2); }
+.org-tree li::after { right: auto; left: 50%; border-left: 1px solid var(--st-border-2); }
+.org-tree > ul > li::before, .org-tree > ul > li::after { display: none; }
+.org-tree li:only-child::before, .org-tree li:only-child::after { display: none; }
+.org-tree li:only-child { padding-top: 22px; }
+.org-tree li:first-child::before, .org-tree li:last-child::after { border: 0 none; }
+.org-tree li:last-child::before { border-right: 1px solid var(--st-border-2); border-radius: 0 8px 0 0; }
+.org-tree li:first-child::after { border-radius: 8px 0 0 0; }
+.org-tree ul ul::before { content: ""; position: absolute; top: 0; left: 50%; height: 22px; border-left: 1px solid var(--st-border-2); }
+.org-tree > ul > li:only-child { padding-top: 0; }

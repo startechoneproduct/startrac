@@ -13,13 +13,13 @@ import {
 } from "#modules/businesses/coldroom/coldroom.service.js";
 import { applyCreditChange } from "#modules/customers/customerLedger.model.js";
 import { requirePerm, requireBranch } from "#core/middleware/tenant.js";
-import { InsufficientStockError } from "#modules/inventory/inventory.service.js";
+
 import { nextSeq } from "#core/counters.js";
 import { bumpDailyMetric, localDay } from "#modules/metrics/metrics.service.js";
 import { money } from "#core/money.js";
 import { audit } from "#core/audit.js";
 import { withTransaction } from "#core/tx.js";
-import { HttpError, badRequest, conflict, notFound } from "#core/httpError.js";
+import { badRequest, conflict, notFound } from "#core/httpError.js";
 import { afterStockChange } from "#modules/alerts/alerts.service.js";
 import { hasCapability } from "#shared/businessTypes.js";
 

@@ -1,21 +1,16 @@
-import crypto from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
 import { User } from "#modules/auth/user.model.js";
-import { VerificationCode } from "#modules/auth/verificationCode.model.js";
-import { hashPassword, checkPassword } from "#modules/auth/auth.service.js";
+import { issueCode, consumeCode } from "#modules/auth/codes.js";
 import { rateLimit } from "#core/rateLimit.js";
 import { sendMail, emailShell } from "#core/mailer.js";
 import { sendSms } from "#core/sms.js";
-import { badRequest, notFound, conflict, HttpError } from "#core/httpError.js";
+
 
 export const verifyRouter = Router();
 
-const CODE_TTL_MS = 10 * 60 * 1000;
 const REQUEST_LIMIT = { max: 3, windowMs: 15 * 60 * 1000 };
 const CONFIRM_LIMIT = { max: 8, windowMs: 15 * 60 * 1000 };
-
-const genCode = () => String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
 
 function purposeFor(channel) {
   return channel === "email" ? "verify_email" : "verify_phone";
@@ -29,22 +24,14 @@ function purposeFor(channel) {
 export async function requestVerification(userId, channel) {
   try {
     const user = await User.findById(userId);
-    if (!user) return;
+    if (!user) return { sent: false, reason: "no_user" };
     const target = channel === "email" ? user.email : user.phone;
-    if (!target) return;
+    if (!target) return { sent: false, reason: "no_target" };
 
-    const code = genCode();
-    await VerificationCode.create({
-      userId: user._id,
-      channel,
-      target,
-      purpose: purposeFor(channel),
-      codeHash: await hashPassword(code),
-      expiresAt: new Date(Date.now() + CODE_TTL_MS),
-    });
+    const code = await issueCode({ user, channel, target, purpose: purposeFor(channel) });
 
     if (channel === "email") {
-      await sendMail({
+      return await sendMail({
         to: target,
         subject: "Verify your email — StarTrack",
         html: emailShell({
@@ -55,11 +42,12 @@ export async function requestVerification(userId, channel) {
           footNote: "If you didn't request this, you can ignore this email.",
         }),
       });
-    } else {
-      await sendSms({ to: target, message: `Your StarTrack verification code is ${code}. It expires in 10 minutes.` });
     }
+    await sendSms({ to: target, message: `Your StarTrack verification code is ${code}. It expires in 10 minutes.` });
+    return { sent: true }; // text messages keep their own behaviour; only email reports failure
   } catch (err) {
     console.error("requestVerification failed:", err.message);
+    return { sent: false, reason: err.message };
   }
 }
 
@@ -83,7 +71,17 @@ verifyRouter.post("/request", async (req, res) => {
     return res.status(400).json({ error: "no_phone", message: "Add a phone number first." });
   }
 
-  await requestVerification(user._id, channel);
+  const out = await requestVerification(user._id, channel);
+  // Say so when the code didn't actually go out, instead of leaving them waiting for it.
+  if (out && out.sent === false) {
+    const off = out.reason === "not_configured";
+    return res.status(off ? 503 : 502).json({
+      error: off ? "email_off" : "send_failed",
+      message: off
+        ? `We can't send ${channel === "email" ? "emails" : "texts"} from this server yet. Please contact support.`
+        : `We couldn't send the code to your ${channel === "email" ? "email" : "phone"}. Please try again in a moment.`,
+    });
+  }
   res.json({ ok: true, channel });
 });
 
@@ -99,24 +97,7 @@ verifyRouter.post("/confirm", async (req, res) => {
     return res.status(429).json({ error: "rate_limited", message: "Too many attempts. Wait a bit and try again." });
   }
 
-  const entry = await VerificationCode.findOne({
-    userId: req.auth.userId,
-    purpose: purposeFor(channel),
-    consumedAt: null,
-  }).sort({ createdAt: -1 });
-  if (!entry) throw notFound("No pending code — request a new one.", "no_code");
-  if (entry.expiresAt < new Date()) throw conflict("That code has expired — request a new one.", "expired");
-  if (entry.attempts >= entry.maxAttempts) throw conflict("Too many wrong attempts — request a new code.", "too_many_attempts");
-
-  const ok = await checkPassword(code, entry.codeHash);
-  if (!ok) {
-    entry.attempts += 1;
-    await entry.save();
-    throw badRequest("Incorrect code.", "bad_code");
-  }
-
-  entry.consumedAt = new Date();
-  await entry.save();
+  await consumeCode(req.auth.userId, purposeFor(channel), code);
   await User.updateOne(
     { _id: req.auth.userId },
     { $set: channel === "email" ? { emailVerified: true } : { phoneVerified: true } }

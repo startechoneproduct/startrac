@@ -1,6 +1,7 @@
 import path from "node:path";
 import { defineConfig } from "@playwright/test";
 import { API_PORT, MONGO_URI, WEB_PORT, assertLocalMongo } from "./support/env";
+import { SMTP_PORT } from "./support/smtp";
 
 // Refuse to even start the servers against anything but the local throwaway database.
 assertLocalMongo();
@@ -37,7 +38,13 @@ export default defineConfig({
       url: `http://localhost:${API_PORT}/api/health`,
       reuseExistingServer: false,
       timeout: 90_000,
-      env: { PORT: String(API_PORT), MONGODB_URI: MONGO_URI, NODE_ENV: "development" },
+      env: {
+        PORT: String(API_PORT), MONGODB_URI: MONGO_URI, NODE_ENV: "development",
+        // Mail goes to the pretend server (support/smtp.ts), whatever real SMTP details are in .env,
+        // so a test run can never email a real person.
+        ALERT_DIGEST_DELAY_MS: "400", // urgent-alert emails go out almost at once, so tests needn't wait a minute
+        SMTP_HOST: "127.0.0.1", SMTP_PORT: String(SMTP_PORT), SMTP_SECURE: "false", SMTP_USER: "app@example.test", SMTP_PASS: "test-password", MAIL_FROM: "",
+      },
     },
     {
       // The real web app, proxying /api to the API above.

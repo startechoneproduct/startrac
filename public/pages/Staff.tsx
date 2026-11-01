@@ -11,16 +11,16 @@ import { useApi } from "@/lib/useApi";
 import { usePaged, Pager } from "@/components/ui/Pager";
 import { useSession } from "@/lib/session";
 import { typeMeta } from "@/lib/businessTypes";
+import { OrgChart } from "@/components/staff/OrgChart";
 
 type Staff = {
   id: string; userId: string; name: string; email: string; role: string;
   branchId: string | null; branchName: string; hasPin: boolean; status: string; permsOverride: string[];
   shiftId: string | null; shiftName: string;
-  // Organizational only — never gates access. See OrgChart below.
+  // Organizational only — never gates access. See components/staff/OrgChart.tsx.
   position: string; reportsToId: string | null; reportsToName: string;
 };
 type ShiftRow = { id: string; name: string; start: string; end: string };
-type OrgNode = { id: string; name: string; position: string; role: string; children: OrgNode[] };
 
 const ROLE_TONE: Record<string, "brand" | "success" | "warning" | "neutral"> = {
   owner: "brand", admin: "success", manager: "warning", staff: "neutral",
@@ -179,45 +179,6 @@ export function Staff() {
       />
       <OrgChart open={chartOpen} onClose={() => setChartOpen(false)} />
     </div>
-  );
-}
-
-// The reporting tree from GET /api/staff/org-chart — a read view (edits
-// happen via Add/Edit staff's Position/Reports-to fields), so this fetches
-// fresh each time it opens rather than staying mounted.
-function OrgChart({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { data, loading } = useApi<{ chart: OrgNode[] }>(open ? "/staff/org-chart" : null, [open]);
-  const roots = data?.chart || [];
-
-  function Branch({ node }: { node: OrgNode }) {
-    return (
-      <li>
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-ctl bg-surface-2 border border-line">
-          <span className="text-[12.5px] font-semibold text-t1">{node.name}</span>
-          {node.position && <span className="text-[11px] text-primary font-semibold">{node.position}</span>}
-          {!node.position && <span className="text-[11px] text-t4 capitalize">{node.role}</span>}
-        </div>
-        {node.children.length > 0 && (
-          <ul className="mt-2 ml-4 pl-4 border-l border-line space-y-2">
-            {node.children.map((c) => <Branch key={c.id} node={c} />)}
-          </ul>
-        )}
-      </li>
-    );
-  }
-
-  return (
-    <Modal open={open} onClose={onClose} title="Org chart" subtitle="Who reports to whom — set via Position / Reports to on each staff member" wide>
-      {loading ? (
-        <Spinner />
-      ) : roots.length === 0 ? (
-        <EmptyState icon={Network} title="Nothing to chart yet" body="Set a Position and Reports-to on your staff to build this out." />
-      ) : (
-        <ul className="space-y-2">
-          {roots.map((n) => <Branch key={n.id} node={n} />)}
-        </ul>
-      )}
-    </Modal>
   );
 }
 

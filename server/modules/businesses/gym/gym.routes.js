@@ -14,7 +14,7 @@ import { nextSeq } from "#core/counters.js";
 import { bumpDailyMetric, localDay } from "#modules/metrics/metrics.service.js";
 import { money } from "#core/money.js";
 import { audit } from "#core/audit.js";
-import { badRequest, notFound, HttpError } from "#core/httpError.js";
+import { badRequest, notFound } from "#core/httpError.js";
 
 export const gymRouter = Router();
 

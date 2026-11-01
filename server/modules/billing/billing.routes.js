@@ -10,6 +10,7 @@ import { Customer } from "#modules/customers/customer.model.js";
 import { Product } from "#modules/products/product.model.js";
 import { config } from "#core/config.js";
 import { publicBase } from "#core/share.js";
+import { emailPaymentReceipt } from "#modules/billing/billingNotices.js";
 import { rateLimit } from "#core/rateLimit.js";
 import { PAYMENTS_ENABLED, isLegacyAccount, planStatus, PLANS, planRank, TRIAL_DAYS, bonusPlanFor } from "#shared/plans.js";
 
@@ -94,7 +95,9 @@ export async function applyTransaction(tx) {
     }
   );
   if (!claimed.modifiedCount) return { ok: true, plan, already: true, account };
-  return { ok: true, plan, periodEnd: end, account: await Account.findById(account._id) };
+  const fresh = await Account.findById(account._id);
+  emailPaymentReceipt(fresh, { plan, amount: PLANS[plan].price, periodEnd: end, bonusUntil });
+  return { ok: true, plan, periodEnd: end, account: fresh };
 }
 
 // GET /api/billing — what plan you're on, what it allows, how much of it you use

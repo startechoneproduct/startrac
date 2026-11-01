@@ -4,11 +4,11 @@ import mongoose from "mongoose";
 import { Product } from "#modules/products/product.model.js";
 import { ProductionRun } from "#modules/production/productionRun.model.js";
 import { requirePerm, requireBranch } from "#core/middleware/tenant.js";
-import { applyMovement, InsufficientStockError } from "#modules/inventory/inventory.service.js";
+import { applyMovement } from "#modules/inventory/inventory.service.js";
 import { nextSeq } from "#core/counters.js";
 import { audit } from "#core/audit.js";
 import { withTransaction } from "#core/tx.js";
-import { HttpError, badRequest, notFound } from "#core/httpError.js";
+import { badRequest, notFound } from "#core/httpError.js";
 import { afterStockChange } from "#modules/alerts/alerts.service.js";
 
 export const productionRouter = Router();

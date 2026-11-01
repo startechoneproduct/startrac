@@ -5,8 +5,11 @@ import { Customer } from "#modules/customers/customer.model.js";
 import { requirePerm } from "#core/middleware/tenant.js";
 import { audit } from "#core/audit.js";
 import { raise, keys } from "#modules/alerts/notify.js";
+import { User } from "#modules/auth/user.model.js";
+import { emailPerson, realEmail } from "#core/ownerMail.js";
+import { esc } from "#core/mailer.js";
 import { nextSeq } from "#core/counters.js";
-import { notFound, badRequest, HttpError } from "#core/httpError.js";
+import { notFound, badRequest } from "#core/httpError.js";
 import { escapeRegex } from "#core/regex.js";
 
 export const ticketsRouter = Router();
@@ -61,6 +64,18 @@ async function notify(ctx, ticket, { toUserIds, title, body }) {
         forUserId,
       }
     );
+  }
+  // The bell is for people who are in the app; the email reaches them when they aren't.
+  const people = await User.find({ _id: { $in: recipients } }).select("email");
+  for (const person of people.filter((u) => realEmail(u.email))) {
+    emailPerson(person.email, {
+      subject: `${title} — ${ticket.subject}`,
+      businessName: ctx.business?.name || "StarTrack",
+      heading: title,
+      intro: body || `Support ticket "${ticket.subject}" has an update.`,
+      sections: [`<p style="font-size:13px;color:#6b7280;margin:0">Ticket ${esc(ticket.ticketNo)}: ${esc(ticket.subject)}. Open Support in StarTrack to reply.</p>`],
+      footNote: "You are receiving this because you raised or were assigned this ticket.",
+    }).catch(() => {});
   }
 }
 

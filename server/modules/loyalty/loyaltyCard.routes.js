@@ -4,7 +4,7 @@ import { LoyaltyCard } from "#modules/loyalty/loyaltyCard.model.js";
 import { Customer } from "#modules/customers/customer.model.js";
 import { requirePerm } from "#core/middleware/tenant.js";
 import { audit } from "#core/audit.js";
-import { notFound, HttpError } from "#core/httpError.js";
+import { notFound } from "#core/httpError.js";
 import { sendLoyaltyCardEmail, loyaltyCardUrl } from "#modules/loyalty/loyaltyCard.service.js";
 
 export const loyaltyCardRouter = Router();

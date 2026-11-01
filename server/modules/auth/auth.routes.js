@@ -15,6 +15,10 @@ import { createDemoSandbox } from "#modules/auth/demoSeed.js";
 import { DEMOS } from "#modules/auth/demoShops.js";
 import { withTransaction } from "#core/tx.js";
 import { requestVerification } from "#modules/auth/verify.routes.js";
+import { issueCode, consumeCode } from "#modules/auth/codes.js";
+import { emailPerson, emailOwner, realEmail, button } from "#core/ownerMail.js";
+import { esc } from "#core/mailer.js";
+import { HttpError } from "#core/httpError.js";
 
 export const authRouter = Router();
 
@@ -113,6 +117,7 @@ authRouter.post("/register", async (req, res) => {
   // Fire-and-forget: a code is already in the inbox by the time the UI shows
   // the verify nag. Never blocks or fails the sign-up response.
   requestVerification(created.user._id, "email");
+  welcomeEmail(created.account, created.user, startPlanOf(req.body)).catch(() => {});
 
   return res.status(201).json(sessionPayload(created.user, created.account, created.membership, {
     businesses: [created.business],
@@ -164,6 +169,95 @@ authRouter.post("/login", async (req, res) => {
   const branches = await Branch.find({ accountId: account._id });
 
   return res.json(sessionPayload(user, account, membership, { businesses, branches }));
+});
+
+// ── welcome, and a forgotten password ───────────────────────────────────────
+
+const startPlanOf = (body) => (isPlan(body?.plan) ? body.plan : config.defaultPlan);
+
+/** The first email a new owner gets: what happens next. Fire-and-forget. */
+async function welcomeEmail(account, user, plan) {
+  const p = PLANS[plan];
+  const next = PAYMENTS_ENABLED
+    ? `Your account is ready. To start selling, make your first payment for the ${p.name} plan (₦${p.price.toLocaleString("en-NG")} a month)${plan === "free" ? " and you get 14 days of Pro free with it" : ""}. Until then you can look around but not make changes.`
+    : `Your account is ready on the ${p.name} plan. Add your products and make your first sale.`;
+  await emailPerson(user.email, {
+    subject: `Welcome to StarTrack, ${user.name.split(" ")[0]}`,
+    businessName: account.name || "StarTrack",
+    heading: `Welcome, ${user.name.split(" ")[0]}`,
+    intro: next,
+    sections: [config.appUrl ? button(`${config.appUrl.replace(/\/$/, "")}/app/billing`, PAYMENTS_ENABLED ? "Make your first payment" : "Open StarTrack") : "",
+      `<p style="font-size:13px;color:#6b7280;line-height:1.6;margin:0">We've also sent a separate email with a code to verify your address.</p>`],
+    footNote: "You are receiving this because you created a StarTrack account.",
+  });
+}
+
+const forgotSchema = z.object({ email: z.string().email("Enter a valid email") });
+const FORGOT_REPLY = { ok: true, message: "If that email has an account, we've sent a code to it. It expires in 10 minutes." };
+
+// POST /api/auth/forgot: emails a one-time code. Answers the same whether or not the address has an account.
+authRouter.post("/forgot", async (req, res) => {
+  const parsed = forgotSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid", message: parsed.error.issues[0].message });
+  const email = parsed.data.email.toLowerCase();
+  if (!rateLimit(`forgot:ip:${req.ip}`, { max: 30, windowMs: 60 * 60_000 }) || !rateLimit(`forgot:e:${email}`, { max: 3, windowMs: 15 * 60_000 })) {
+    return res.status(429).json({ error: "rate_limited", message: "Too many requests. Please wait a few minutes and try again." });
+  }
+  const user = await User.findOne({ email });
+  if (user && user.status === "active" && realEmail(user.email)) {
+    const code = await issueCode({ user, channel: "email", target: user.email, purpose: "reset_password" });
+    await emailPerson(user.email, {
+      subject: "Reset your StarTrack password",
+      heading: "Reset your password",
+      intro: "Use this code to choose a new password. It expires in 10 minutes.",
+      sections: [`<div style="font-size:28px;font-weight:800;letter-spacing:4px;text-align:center;margin:12px 0">${esc(code)}</div>`],
+      footNote: "If you didn't ask for this, you can ignore this email. Your password hasn't changed.",
+    });
+  } else {
+    await hashPassword("same-work-for-unknown-emails"); // so an unknown address takes about as long to answer
+  }
+  res.json(FORGOT_REPLY);
+});
+
+const resetSchema = z.object({
+  email: z.string().email(),
+  code: z.string().min(4).max(8),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+// POST /api/auth/reset: checks the code and sets the new password.
+authRouter.post("/reset", async (req, res) => {
+  const parsed = resetSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid", message: parsed.error.issues[0].message });
+  const email = parsed.data.email.toLowerCase();
+  const guard = failureGuard(`reset:e:${email}`, { max: 8, windowMs: 15 * 60_000 });
+  if (guard.blocked()) return res.status(429).json({ error: "rate_limited", message: "Too many wrong codes. Please wait a few minutes, or ask for a new code." });
+
+  const user = await User.findOne({ email });
+  if (!user || user.status !== "active") {
+    guard.fail();
+    return res.status(400).json({ error: "bad_code", message: "Incorrect code." });
+  }
+  try {
+    await consumeCode(user._id, "reset_password", parsed.data.code);
+  } catch (err) {
+    guard.fail();
+    // Don't let "no code was ever requested" tell a stranger the address has an account.
+    if (err instanceof HttpError && err.code === "no_code") return res.status(400).json({ error: "bad_code", message: "Incorrect code." });
+    throw err;
+  }
+  user.passwordHash = await hashPassword(parsed.data.password);
+  user.emailVerified = true; // they just proved they control the address
+  await user.save();
+  guard.clear();
+  failureGuard(`login:e:${email}`, LOGIN_BY_EMAIL).clear(); // and a lockout from guessing no longer applies
+  emailPerson(user.email, {
+    subject: "Your StarTrack password was changed",
+    heading: "Your password was changed",
+    intro: "You just reset the password on your StarTrack account. If that wasn't you, reset it again straight away and contact support.",
+    footNote: "This is a security notice about your account.",
+  }).catch(() => {});
+  res.json({ ok: true });
 });
 
 // GET /api/auth/demo/shops — the trades a visitor can try. Public: the

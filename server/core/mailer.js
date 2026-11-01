@@ -1,61 +1,77 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 import { config } from "#core/config.js";
 
 /**
- * Outbound email — the one door every kind of email this app sends goes
- * through, whatever triggers it (today: the alerts digest; nothing stops the
- * next feature from being a receipt, an invite, or a password reset using
- * the exact same sendMail/emailShell pair). Configured through
- * RESEND_API_KEY; when it's absent the mailer stays off and says so once,
- * rather than pretending to send. Nothing in the app depends on mail
- * succeeding — alerts always land in the in-app bell first, and email is the
- * copy that follows.
+ * Outbound email: the one door every kind of email this app sends goes through,
+ * whatever triggers it (sign-up codes, the alerts digest, invoices, receipts,
+ * password resets). It speaks plain SMTP, so any provider works; the default is
+ * Gmail (smtp.gmail.com with an App password, see config.js). When SMTP_USER or
+ * SMTP_PASS is missing the mailer stays off and says so once, rather than
+ * pretending to send. Nothing in the app depends on mail succeeding: alerts
+ * land in the in-app bell first, and email is the copy that follows.
  */
-let client = null;
+let transport = null;
 let warned = false;
 
-function getClient() {
-  if (client) return client;
-  if (!config.resend.apiKey) {
+export const mailEnabled = () => !!(config.smtp.user && config.smtp.pass);
+
+function getTransport() {
+  if (transport) return transport;
+  if (!mailEnabled()) {
     if (!warned) {
       warned = true;
       console.warn(
-        "✉ Email is OFF — no RESEND_API_KEY configured.\n" +
-          "  Set RESEND_API_KEY (from resend.com/api-keys) to turn it on.\n" +
+        "✉ Email is OFF: SMTP_USER / SMTP_PASS aren't set.\n" +
+          "  For Gmail: turn on 2-Step Verification, create an App password at\n" +
+          "  myaccount.google.com/apppasswords, then set SMTP_USER (your address) and SMTP_PASS.\n" +
           "  Alerts still appear in the app; only the email copy is skipped."
       );
     }
     return null;
   }
-  client = new Resend(config.resend.apiKey);
-  return client;
+  const { host, port, secure, user, pass } = config.smtp;
+  transport = nodemailer.createTransport({
+    host, port, secure, auth: { user, pass },
+    // A mail server having a bad day must not hang a request: give up quickly.
+    connectionTimeout: 10_000, greetingTimeout: 10_000, socketTimeout: 20_000,
+  });
+  return transport;
 }
 
-export const mailEnabled = () => !!config.resend.apiKey;
+/** Gmail rejects mail whose From isn't the signed-in address, so unless told otherwise send as it. */
+const fromAddress = () => config.smtp.from || `StarTrack <${config.smtp.user}>`;
+
+/** A reason a person can act on, instead of a stack of SMTP codes. */
+function explain(err) {
+  const code = err?.code, resp = String(err?.response || err?.message || "");
+  if (code === "EAUTH" || /535|Username and Password not accepted|BadCredentials/i.test(resp)) {
+    return "The email server refused the login. For Gmail, SMTP_PASS must be an App password (not your normal password) and SMTP_USER the same account.";
+  }
+  if (code === "ETIMEDOUT" || code === "ECONNECTION" || code === "ESOCKET" || code === "ENOTFOUND" || code === "EDNS") {
+    return "Couldn't reach the email server. Check the internet connection, and the SMTP_HOST and SMTP_PORT settings.";
+  }
+  return err?.message || "send_failed";
+}
 
 /**
- * Sends one message. Never throws — a mail provider having a bad day must
- * not take a checkout or a nightly sweep down with it.
+ * Sends one message. Never throws: a mail provider having a bad day must not
+ * take a checkout or a nightly sweep down with it. Resolves { sent, reason }.
  */
 export async function sendMail({ to, subject, html, text }) {
-  const resend = getClient();
-  if (!resend || !to?.length) return { sent: false, reason: "not_configured" };
+  const mailer = getTransport();
+  if (!mailer || !to?.length) return { sent: false, reason: "not_configured" };
   try {
-    const { error } = await resend.emails.send({
-      from: config.resend.from,
-      to: Array.isArray(to) ? to : [to],
+    await mailer.sendMail({
+      from: fromAddress(),
+      to: Array.isArray(to) ? to.join(", ") : to,
       subject,
       html,
       text: text || html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(),
     });
-    if (error) {
-      console.error("✉ email failed:", error.message || error);
-      return { sent: false, reason: error.message || "send_failed" };
-    }
     return { sent: true };
   } catch (err) {
     console.error("✉ email failed:", err.message);
-    return { sent: false, reason: err.message };
+    return { sent: false, reason: explain(err) };
   }
 }
 
