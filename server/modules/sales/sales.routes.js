@@ -139,6 +139,12 @@ function buildSalesFilter(req) {
     filter["items.productId"] = new mongoose.Types.ObjectId(String(req.query.productId));
   }
   if (req.query.method) filter["payments.method"] = String(req.query.method);
+  // One upload's records. An upload belongs to the whole business, so it is shown whichever
+  // branch is selected (it was saved against the branch the uploader was in).
+  if (req.query.batchId && mongoose.isValidObjectId(req.query.batchId)) {
+    filter.importBatchId = new mongoose.Types.ObjectId(String(req.query.batchId));
+    delete filter.branchId;
+  }
   if (req.query.channel === "online") filter.channel = "online";
   else if (req.query.channel === "import") filter.channel = "import";
   else if (req.query.channel === "invoice") filter.channel = "invoice";

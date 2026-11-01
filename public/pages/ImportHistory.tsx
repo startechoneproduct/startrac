@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Check, Download, FileSpreadsheet, History, RotateCcw, Upload } from "lucide-react";
+import { Check, Download, Eye, FileSpreadsheet, History, RotateCcw, Upload } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge, Card } from "@/components/ui/Card";
 import { PageHeader, Spinner } from "@/components/ui/EmptyState";
@@ -14,6 +14,9 @@ import { useSession } from "@/lib/session";
 import { fmtMoney, fmtDate } from "@/lib/format";
 
 type Batch = { id: string; fileName: string; status: "active" | "undone"; sales: number; revenue: number; from: string; to: string; newCustomers: number; newProducts: number; createdBy: string; createdAt: string; undoneAt: string | null };
+
+/** The Sales history page, opened on exactly this upload's records. */
+const salesLink = (id: string, fileName: string, from: string, to: string) => `/app/sales?batch=${id}&batchName=${encodeURIComponent(fileName)}&from=${from}&to=${to}`;
 
 const day = (d: string) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" }) : "");
 
@@ -81,13 +84,14 @@ export function ImportHistory() {
                   <div className="text-[12px] text-t3">{b.sales.toLocaleString()} sales · {money(b.revenue)} · {day(b.from)}{b.to !== b.from ? ` – ${day(b.to)}` : ""}</div>
                   <div className="text-[11.5px] text-t4">Uploaded {fmtDate(b.createdAt)} by {b.createdBy}{b.newCustomers ? ` · ${b.newCustomers} new customers` : ""}{b.newProducts ? ` · ${b.newProducts} items added to history` : ""}</div>
                 </div>
+                {b.status === "active" && <Link to={salesLink(b.id, b.fileName, b.from, b.to)} className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-line-2 bg-surface text-[12.5px] font-semibold text-t1 hover:border-primary hover:text-primary"><Eye className="w-3.5 h-3.5" /> View sales</Link>}
                 {b.status === "active" && <Button variant="ghost" size="sm" onClick={() => setUndoing(b)}><RotateCcw className="w-3.5 h-3.5" /> Undo</Button>}
               </div>
             ))}
           </div>
         )}
       </Card>
-      <p className="text-[12px] text-t4 text-center">See imported sales any time in <Link to="/app/sales" className="text-primary font-semibold hover:underline">Sales history</Link>, filtered by “Imported history”.</p>
+      <p className="text-[12px] text-t4 text-center">Every upload above has a <b>View sales</b> button. You can also find them in <Link to="/app/sales?channel=import" className="text-primary font-semibold hover:underline">Sales history</Link> under “Imported history”.</p>
 
       <SpreadsheetImport
         open={open} onClose={() => setOpen(false)} onDone={reload}
@@ -111,7 +115,7 @@ export function ImportHistory() {
         ]}
         columns={[{ label: "Date", cell: (s) => day(s.date) }, { label: "Items", cell: (s) => <span className="truncate block max-w-[260px]">{s.items}</span> }, { label: "Customer", cell: (s) => s.customer || "—" }, { label: "Total", cell: (s) => money(s.total), align: "right" }]}
         saveLabel={(r) => `Save ${(r.totals.sales ?? 0).toLocaleString()} sale${r.totals.sales === 1 ? "" : "s"}`}
-        done={(r) => <>{(r.created ?? 0).toLocaleString()} sale{r.created === 1 ? "" : "s"} added to your history ({money(r.revenue ?? 0)}).</>}
+        done={(r) => <>{(r.created ?? 0).toLocaleString()} sale{r.created === 1 ? "" : "s"} added to your history ({money(r.revenue ?? 0)}).{r.batchId && <> <Link to={salesLink(r.batchId, r.fileName || "your upload", r.from, r.to)} className="text-primary underline underline-offset-2">View these sales</Link></>}</>}
       />
 
       <Modal open={!!undoing} onClose={() => setUndoing(null)} title="Undo this upload?" subtitle={undoing ? `${undoing.fileName} · ${undoing.sales} sales` : ""}>

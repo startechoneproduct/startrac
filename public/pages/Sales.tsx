@@ -57,10 +57,12 @@ export function Sales() {
 export function SalesHistoryView() {
   const { activeBranch, currency, can } = useSession();
   const [searchParams] = useSearchParams();
-  const [from, setFrom] = useState(() => todayStr().slice(0, 8) + "01"); // this month
-  const [to, setTo] = useState(todayStr);
+  // Arriving from an upload ("View sales" on Import history) opens on exactly that file's records.
+  const [batch, setBatch] = useState(() => (searchParams.get("batch") ? { id: searchParams.get("batch")!, name: searchParams.get("batchName") || "an uploaded file" } : null));
+  const [from, setFrom] = useState(() => searchParams.get("from") || (searchParams.get("channel") === "import" ? "2000-01-01" : todayStr().slice(0, 8) + "01")); // this month
+  const [to, setTo] = useState(() => searchParams.get("to") || todayStr());
   const [status, setStatus] = useState("");
-  const [channel, setChannel] = useState("");
+  const [channel, setChannel] = useState(() => (searchParams.get("batch") ? "import" : searchParams.get("channel") || ""));
   const [saleNo, setSaleNo] = useState(searchParams.get("saleNo") || "");
   const [page, setPage] = useState(1);
 
@@ -70,7 +72,7 @@ export function SalesHistoryView() {
     const fromUrl = searchParams.get("saleNo");
     if (fromUrl) { setSaleNo(fromUrl); setFrom("2000-01-01"); setPage(1); }
   }, [searchParams]);
-  const filters = `from=${from}&to=${to}${status ? `&status=${status}` : ""}${channel ? `&channel=${channel}` : ""}${saleNo ? `&saleNo=${encodeURIComponent(saleNo)}` : ""}`;
+  const filters = `from=${from}&to=${to}${batch ? `&batchId=${batch.id}` : ""}${status ? `&status=${status}` : ""}${channel ? `&channel=${channel}` : ""}${saleNo ? `&saleNo=${encodeURIComponent(saleNo)}` : ""}`;
   const query = `/sales?${filters}&page=${page}&limit=${PAGE_SIZE}`;
   const { data, loading, reload } = useApi<{ sales: Sale[]; totals: Totals; page: number; pages: number }>(
     query,
@@ -120,6 +122,12 @@ export function SalesHistoryView() {
   return (
     <div>
       {/* Filters */}
+      {batch && (
+        <div className="mb-3 flex items-center gap-3 flex-wrap rounded-xl bg-primary-soft text-primary px-4 py-2.5 text-[13px] font-semibold" data-testid="batch-banner">
+          <span className="min-w-0 flex-1">Showing the sales from <b>{batch.name}</b>, for every date and branch.</span>
+          <button className="underline underline-offset-2 hover:no-underline" onClick={() => { setBatch(null); setChannel(""); setFrom(todayStr().slice(0, 8) + "01"); setTo(todayStr()); setPage(1); }}>Show all sales</button>
+        </div>
+      )}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <Input type="date" value={from} onChange={(e) => setFilter(setFrom)(e.target.value)} className="!w-40" />
         <span className="text-t4 text-[12px]">to</span>

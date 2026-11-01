@@ -275,3 +275,55 @@ test.describe("Access", () => {
     expect(preview.totals.sales).toBe(2);
   });
 });
+
+test.describe("Seeing what was uploaded", () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  async function signIn(page: import("@playwright/test").Page, email: string) {
+    await page.addInitScript(() => localStorage.setItem("startrack.tour.dashboard-v1", "1"));
+    await page.goto("/login");
+    await page.getByPlaceholder("Email address").fill(email);
+    await page.getByPlaceholder("Password").fill("OwnerPass123");
+    await page.getByRole("button", { name: "Sign In" }).click();
+    await expect(page).toHaveURL(/\/app\/dashboard/);
+  }
+
+  test("each upload has a View sales link that opens exactly its records, even from last year", async ({ page, request }) => {
+    const o = await newOwner(request);
+    await seedProduct(o.accountId, o.businessId, o.branchId, "Rice", 5200, 40, { cost: 3900 });
+    // A normal till sale today, so the page has something that is NOT part of the upload.
+    const rice = (await (await request.get("/api/products", { headers: o.headers })).json()).products[0].id;
+    await request.post("/api/sales", { headers: o.headers, data: { items: [{ productId: rice, qty: 1 }], payments: [{ method: "cash", amount: 5200 }] } });
+    expect((await (await uploadCsv(request, URL, o, CSV, { commit: "1" })).json()).created).toBe(3);
+
+    await signIn(page, o.email);
+    await page.goto("/app/import-history");
+    await page.getByRole("link", { name: "View sales" }).click();
+
+    // March 2025 is far outside "this month", yet its three sales are right there.
+    await expect(page).toHaveURL(/\/app\/sales\?batch=/);
+    await expect(page.getByTestId("batch-banner")).toContainText("Showing the sales from");
+    await expect(page.locator("tbody").getByText("Imported history").first()).toBeVisible();   // the staff column: these came from a file
+    await expect(page.locator("tbody").getByText("imported", { exact: true }).first()).toBeVisible();
+    await expect(page.locator("tbody tr")).toHaveCount(3);   // only the upload, not today's till sale
+
+    // A way back to everything.
+    await page.getByRole("button", { name: "Show all sales" }).click();
+    await expect(page.getByTestId("batch-banner")).toHaveCount(0);
+    await expect(page.locator("tbody tr")).toHaveCount(1);   // this month: just the till sale
+  });
+
+  test("the upload's records show whichever branch is selected, and the API refuses another business's upload id", async ({ request }) => {
+    const a = await newOwner(request);
+    const b = await newOwner(request);
+    await seedProduct(a.accountId, a.businessId, a.branchId, "Rice", 5200, 40, { cost: 3900 });
+    await uploadCsv(request, URL, a, CSV, { commit: "1" });
+    const batchId = (await (await request.get("/api/history-import/batches", { headers: a.headers })).json()).batches[0].id;
+
+    const mine = await (await request.get(`/api/sales?batchId=${batchId}&from=2000-01-01&to=2099-01-01`, { headers: a.headers })).json();
+    expect(mine.sales).toHaveLength(3);
+    expect(mine.sales.every((s: any) => s.channel === "import")).toBe(true);
+    const theirs = await (await request.get(`/api/sales?batchId=${batchId}&from=2000-01-01&to=2099-01-01`, { headers: b.headers })).json();
+    expect(theirs.sales).toHaveLength(0);
+  });
+});
