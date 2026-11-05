@@ -150,7 +150,7 @@ invoicesRouter.get("/:id", async (req, res) => {
 
 // ── drafts ──────────────────────────────────────────────────────────────────
 
-invoicesRouter.post("/", requireBranch, async (req, res) => {
+invoicesRouter.post("/", requirePerm("invoices"), requireBranch, async (req, res) => {
   const parsed = bodySchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid", message: parsed.error.issues[0].message });
   try {
@@ -161,7 +161,7 @@ invoicesRouter.post("/", requireBranch, async (req, res) => {
   } catch (err) { reply(res, err); }
 });
 
-invoicesRouter.put("/:id", async (req, res) => {
+invoicesRouter.put("/:id", requirePerm("invoices"), async (req, res) => {
   const inv = await load(req, res);
   if (!inv) return;
   if (inv.status !== "draft") return res.status(409).json({ error: "locked", message: "Only a draft can be edited. An issued invoice has already been sent out and recorded." });
@@ -174,7 +174,7 @@ invoicesRouter.put("/:id", async (req, res) => {
   } catch (err) { reply(res, err); }
 });
 
-invoicesRouter.delete("/:id", async (req, res) => {
+invoicesRouter.delete("/:id", requirePerm("invoices"), async (req, res) => {
   const inv = await load(req, res);
   if (!inv) return;
   if (inv.status !== "draft") return res.status(409).json({ error: "locked", message: "Only a draft can be deleted. To cancel an issued invoice, void it." });
@@ -182,7 +182,7 @@ invoicesRouter.delete("/:id", async (req, res) => {
   res.json({ ok: true });
 });
 
-invoicesRouter.post("/:id/duplicate", requireBranch, async (req, res) => {
+invoicesRouter.post("/:id/duplicate", requirePerm("invoices"), requireBranch, async (req, res) => {
   const inv = await load(req, res);
   if (!inv) return;
   const issueDate = new Date();
@@ -196,7 +196,7 @@ invoicesRouter.post("/:id/duplicate", requireBranch, async (req, res) => {
 
 // ── the books ───────────────────────────────────────────────────────────────
 
-invoicesRouter.post("/:id/issue", async (req, res) => {
+invoicesRouter.post("/:id/issue", requirePerm("invoices"), async (req, res) => {
   const inv = await load(req, res);
   if (!inv) return;
   if (!inv.customer?.name && !inv.customerId) return res.status(400).json({ error: "invalid", message: "Say who this invoice is for before issuing it." });
@@ -204,7 +204,7 @@ invoicesRouter.post("/:id/issue", async (req, res) => {
 });
 
 const paymentSchema = z.object({ method: z.enum(["cash", "pos", "transfer"]), amount: z.number().positive().max(1_000_000_000), at: z.string().optional(), note: z.string().trim().max(200).optional() });
-invoicesRouter.post("/:id/payments", async (req, res) => {
+invoicesRouter.post("/:id/payments", requirePerm("invoice_payments"), async (req, res) => {
   const parsed = paymentSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid", message: parsed.error.issues[0].message });
   const inv = await load(req, res);
@@ -212,13 +212,13 @@ invoicesRouter.post("/:id/payments", async (req, res) => {
   try { res.status(201).json({ invoice: out(req, await recordPayment(req.ctx, inv._id, parsed.data)) }); } catch (err) { reply(res, err); }
 });
 
-invoicesRouter.delete("/:id/payments/:pid", requirePerm("void_sales"), async (req, res) => {
+invoicesRouter.delete("/:id/payments/:pid", requirePerm("invoices_void"), async (req, res) => {
   const inv = await load(req, res);
   if (!inv) return;
   try { res.json({ invoice: out(req, await removePayment(req.ctx, inv._id, req.params.pid)) }); } catch (err) { reply(res, err); }
 });
 
-invoicesRouter.post("/:id/void", requirePerm("void_sales"), async (req, res) => {
+invoicesRouter.post("/:id/void", requirePerm("invoices_void"), async (req, res) => {
   const reason = String(req.body?.reason || "").trim();
   if (reason.length < 3) return res.status(400).json({ error: "invalid", message: "Give a reason for voiding this invoice." });
   const inv = await load(req, res);
@@ -227,7 +227,7 @@ invoicesRouter.post("/:id/void", requirePerm("void_sales"), async (req, res) => 
 });
 
 // Notes, terms and the due date can change after issue (extending a due date is routine); money can't.
-invoicesRouter.patch("/:id", async (req, res) => {
+invoicesRouter.patch("/:id", requirePerm("invoices"), async (req, res) => {
   const parsed = z.object({ dueDate: z.string().optional(), notes: z.string().trim().max(1000).optional(), terms: z.string().trim().max(1000).optional() }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid", message: parsed.error.issues[0].message });
   const inv = await load(req, res);
@@ -244,7 +244,7 @@ invoicesRouter.patch("/:id", async (req, res) => {
 // ── sending ─────────────────────────────────────────────────────────────────
 
 
-invoicesRouter.post("/:id/send", async (req, res) => {
+invoicesRouter.post("/:id/send", requirePerm("invoices"), async (req, res) => {
   const parsed = z.object({ via: z.enum(["whatsapp", "email", "link"]), kind: z.enum(["invoice", "reminder"]).default("invoice"), to: z.string().trim().max(120).optional() }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid", message: parsed.error.issues[0].message });
   const inv = await load(req, res);

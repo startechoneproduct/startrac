@@ -7,7 +7,7 @@ export type Business = {
   id: string;
   name: string;
   typeKey: string;
-  settings: { currency: string; vatEnabled: boolean; vatRate: number; receiptFooter?: string; modules?: string[] };
+  settings: { currency: string; vatEnabled: boolean; vatRate: number; receiptFooter?: string; modules?: string[]; logo?: { fileId?: string | null; version?: number } };
   capabilities?: string[];
 };
 export type PlanSummary = {

@@ -156,7 +156,7 @@ const productSchema = z.object({
   // generates one. Accepted here only so CSV import / API callers can carry
   // one over from elsewhere.
   sku: z.string().default(""),
-  barcode: z.string().default(""),
+  barcode: z.string().trim().max(64).default(""),
   category: z.string().min(1).default("General"),
   archetype: z.enum(["stock", "made_to_order"]).default("stock"),
   bom: bomSchema.optional(),
@@ -187,7 +187,7 @@ const productSchema = z.object({
 });
 
 // POST /api/products — requires the prices permission
-productsRouter.post("/", requirePerm("prices"), async (req, res) => {
+productsRouter.post("/", requirePerm("products_add"), async (req, res) => {
   const parsed = productSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid", message: parsed.error.issues[0].message });
   const d = parsed.data;
@@ -268,7 +268,7 @@ productsRouter.post("/", requirePerm("prices"), async (req, res) => {
 const importRowSchema = z.object({
   name: z.string().min(1),
   category: z.string().default("General"),
-  barcode: z.string().default(""),
+  barcode: z.string().trim().max(64).default(""),
   price: z.number().min(0),
   cost: z.number().min(0).default(0),
   reorderLevel: z.number().min(0).default(5),
@@ -279,7 +279,7 @@ const importRowSchema = z.object({
 // POST /api/products/import — bulk import (CSV parsed client-side into rows).
 // All-or-nothing per row: bad rows are reported and skipped, good rows land.
 // Duplicate names (case-insensitive) and barcodes already in the catalog are skipped.
-productsRouter.post("/import", requirePerm("prices"), requireFeature("csvImport"), async (req, res) => {
+productsRouter.post("/import", requirePerm("products_add"), requireFeature("csvImport"), async (req, res) => {
   const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
   if (!rows.length) return res.status(400).json({ error: "invalid", message: "No rows to import." });
   const importRoom = limitProblem(req.ctx.plan, "products", await Product.countDocuments({ businessId: req.ctx.businessId, status: "active" }), rows.length);
@@ -350,7 +350,7 @@ productsRouter.post("/import", requirePerm("prices"), requireFeature("csvImport"
 });
 
 // PATCH /api/products/:id — price changes are audited with before/after
-productsRouter.patch("/:id", requirePerm("prices"), async (req, res) => {
+productsRouter.patch("/:id", requirePerm("products_edit"), async (req, res) => {
   const parsed = productSchema.partial().safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid", message: parsed.error.issues[0].message });
   const d = parsed.data;
@@ -436,7 +436,7 @@ productsRouter.patch("/:id", requirePerm("prices"), async (req, res) => {
 // POST /api/products/archive-all — remove every product this store can see from
 // the catalog at once. Archives (sales history keeps pointing at them), and
 // needs { confirm: true } so a stray request can't empty a catalog.
-productsRouter.post("/archive-all", requirePerm("prices"), async (req, res) => {
+productsRouter.post("/archive-all", requirePerm("products_delete"), async (req, res) => {
   if (req.body?.confirm !== true) return res.status(400).json({ error: "confirm_required", message: "Confirm that you want to delete every product." });
   const ids = (await Product.find(archivableFilter(req.ctx)).select("_id")).map((p) => p._id);
   const count = await archiveProducts(req.ctx, ids, { via: "bulk" });
@@ -453,7 +453,7 @@ productsRouter.post("/archive-all", requirePerm("prices"), async (req, res) => {
 const PHOTO_BATCH = 12;
 const APPLY_BATCH = 8;
 const objectIds = (v) => (Array.isArray(v) ? v.filter((i) => typeof i === "string" && /^[a-f\d]{24}$/i.test(i)).slice(0, 500) : null);
-productsRouter.post("/photos/suggest", requirePerm("prices"), requireFeature("productPhotos"), async (req, res) => {
+productsRouter.post("/photos/suggest", requirePerm("products_edit"), requireFeature("productPhotos"), async (req, res) => {
   const ids = objectIds(req.body?.ids);
   const skip = objectIds(req.body?.skip) || [];
   const filter = { businessId: req.ctx.businessId, status: "active", $or: [{ imageUrl: "" }, { imageUrl: null }] };
@@ -478,7 +478,7 @@ productsRouter.post("/photos/suggest", requirePerm("prices"), requireFeature("pr
 // POST /api/products/photos/apply — save the photos a person chose.
 // Body: { items: [{ id, url, credit? }] }. Each URL must be from a known photo
 // host; the file is fetched here, and re-hosted on Cloudinary when it's set up.
-productsRouter.post("/photos/apply", requirePerm("prices"), requireFeature("productPhotos"), async (req, res) => {
+productsRouter.post("/photos/apply", requirePerm("products_edit"), requireFeature("productPhotos"), async (req, res) => {
   const parsed = z.object({
     items: z.array(z.object({ id: z.string().regex(/^[a-f\d]{24}$/i), url: z.string().url().max(600), credit: z.string().max(160).optional() })).min(1).max(APPLY_BATCH),
   }).safeParse(req.body);
@@ -518,7 +518,7 @@ productsRouter.post("/photos/apply", requirePerm("prices"), requireFeature("prod
 // POST /api/products/:id/image — upload/replace this product's photo.
 // Multipart, field name "image". A replaced photo's old Cloudinary asset is
 // cleaned up best-effort; nothing here blocks on that cleanup succeeding.
-productsRouter.post("/:id/image", requirePerm("prices"), requireFeature("productPhotos"), upload.single("image"), async (req, res) => {
+productsRouter.post("/:id/image", requirePerm("products_edit"), requireFeature("productPhotos"), upload.single("image"), async (req, res) => {
   if (!imageUploadEnabled()) return res.status(400).json({ error: "not_configured", message: "Photo upload isn't set up on this server yet." });
   if (!req.file) return res.status(400).json({ error: "invalid", message: "Choose an image (JPEG, PNG, WEBP or GIF, up to 5MB)." });
 
@@ -544,7 +544,7 @@ productsRouter.post("/:id/image", requirePerm("prices"), requireFeature("product
 });
 
 // DELETE /api/products/:id/image — remove the photo, fall back to the category icon
-productsRouter.delete("/:id/image", requirePerm("prices"), async (req, res) => {
+productsRouter.delete("/:id/image", requirePerm("products_edit"), async (req, res) => {
   const product = await Product.findOne(scopedToBranch(req.ctx, { _id: req.params.id, businessId: req.ctx.businessId }));
   if (!product) return res.status(404).json({ error: "not_found", message: "Product not found." });
   const oldPublicId = product.imagePublicId;
@@ -556,7 +556,7 @@ productsRouter.delete("/:id/image", requirePerm("prices"), async (req, res) => {
 });
 
 // DELETE /api/products/:id — archive, never hard-delete (sales history points here)
-productsRouter.delete("/:id", requirePerm("prices"), async (req, res) => {
+productsRouter.delete("/:id", requirePerm("products_delete"), async (req, res) => {
   const product = await Product.findOne(scopedToBranch(req.ctx, { _id: req.params.id, businessId: req.ctx.businessId }));
   if (!product) return res.status(404).json({ error: "not_found", message: "Product not found." });
   await archiveProducts(req.ctx, [product._id], { via: "single" });

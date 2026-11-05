@@ -45,14 +45,14 @@ import { escapeRegex } from "#core/regex.js";
  */
 export const ACTION_PERM = {
   create_customer: "customers",
-  create_product: "prices",
-  adjust_stock: "stock",
+  create_product: "products_add",
+  adjust_stock: "stock_adjust",
   record_sale: "sales",
   process_return: "returns",
   create_staff: "staff_mgmt",
   record_expense: "expenses",
-  archive_products: "prices", // deleting from the catalog needs the same right as the Delete button
-  import_catalog: "prices", // creating catalog entries needs the same right as adding them by hand
+  archive_products: "products_delete", // deleting from the catalog needs the same right as the Delete button
+  import_catalog: "products_add", // creating catalog entries needs the same right as adding them by hand
 };
 
 export const TOOLS = [

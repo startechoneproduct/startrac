@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ChevronDown, LifeBuoy, MessageSquare } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ChevronDown, Headphones, LifeBuoy, MessageSquare } from "lucide-react";
 import { Spinner } from "@/components/ui/EmptyState";
 import { Pager } from "@/components/ui/Pager";
 import { useApi } from "@/lib/useApi";
@@ -35,11 +36,14 @@ export function SupportTab() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1100px] mx-auto animate-fade-up">
       <PageHeader
         title="Support"
-        subtitle="Tickets that businesses escalated to StarTrack. Work them from the business's own queue."
+        subtitle="Requests businesses sent to StarTrack. Answer, assign and resolve them in the support desk."
         actions={
+          <>
+          <Link to="/desk" className="inline-flex items-center gap-2 h-9 px-3 rounded-[10px] bg-primary text-white text-[12.5px] font-semibold"><Headphones className="w-4 h-4" /> Open support desk</Link>
           <Segmented value={status} onChange={(v) => { setStatus(v); setPage(1); }} options={[
             { value: "", label: "All" }, { value: "open", label: "Open" }, { value: "in_progress", label: "In progress" }, { value: "resolved", label: "Resolved" },
           ]} />
+          </>
         }
       />
 

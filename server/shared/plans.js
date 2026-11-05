@@ -56,6 +56,7 @@ export const PLANS = {
     limits: { businesses: 1, branches: 3, staff: 10, products: 2000, customers: 2000 },
     highlights: [
       "Everything in Freemium",
+      "Profit & loss: costs, margins and net profit",
       "AI assistant & Ask AI",
       "PDF & Excel reports",
       "Spreadsheet import, read by AI",
@@ -79,6 +80,7 @@ export const PLANS = {
       "Everything in Pro",
       "Unlimited branches, staff, products & customers",
       "Multiple businesses + All-stores dashboard",
+      "Your logo on every receipt",
       "Receipt templates & AI receipt writer",
       "Your own business landing page",
       "Audit log",
@@ -91,7 +93,7 @@ export const PLANS = {
 export const FEATURES = {
   ai: { plan: "pro", label: "AI assistant", blurb: "Ask questions about your business, draft actions and import spreadsheets." },
   reports: { plan: "pro", label: "Reports", blurb: "Download PDF and Excel reports." },
-  advancedDashboard: { plan: "pro", label: "Full dashboard", blurb: "Inventory, movement, customers, staff and archive views, on top of Overview, Sales and Expenses." },
+  advancedDashboard: { plan: "pro", label: "Full dashboard", blurb: "Profit and loss, inventory, movement, customers, staff and archive views, on top of Overview, Sales and Expenses." },
   barcodes: { plan: "pro", label: "Barcodes & labels", blurb: "Scan products at the till and print barcode labels." },
   loyalty: { plan: "pro", label: "Loyalty cards", blurb: "Reward repeat customers with QR loyalty cards." },
   transfers: { plan: "pro", label: "Branch transfers", blurb: "Move stock between your branches." },
@@ -106,6 +108,7 @@ export const FEATURES = {
   verticals: { plan: "pro", label: "Trade-specific tools", blurb: "Rooms, memberships, classes, appointments, kitchen queue, cold room and more." },
   receiptCustom: { plan: "pro", label: "Custom receipt", blurb: "Set your receipt's header, footer and what it shows." },
   receiptTemplates: { plan: "business", label: "Receipt templates", blurb: "Pick a designed receipt layout and let AI write your message." },
+  receiptLogo: { plan: "business", label: "Logo on receipts", blurb: "Print your business logo at the top of every receipt." },
   multiStore: { plan: "business", label: "All-stores dashboard", blurb: "Profit, loss and stock across all your businesses." },
   sitePage: { plan: "business", label: "Business landing page", blurb: "Your own public page, customised to your brand." },
   auditLog: { plan: "business", label: "Audit log", blurb: "See who changed what, and when." },

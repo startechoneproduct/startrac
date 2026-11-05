@@ -275,7 +275,7 @@ test.describe("The screens say the same thing", () => {
     await signIn(page, o.email);
     await page.goto("/app/billing");
     await expect(page.getByText(/You're enjoying Pro free until .* After that you carry on with Freemium, paid until/)).toBeVisible();
-    await expect(page.getByText("Customers", { exact: true }).locator("..")).toContainText("0 / 2,000");
+    await expect(page.locator("main").getByText("Customers", { exact: true }).locator("..")).toContainText("0 / 2,000");
   });
 
   test("a new account that hasn't paid is told to, with a Pay now button", async ({ page, request }) => {
@@ -298,6 +298,6 @@ test.describe("The screens say the same thing", () => {
     await page.reload();
     await expect(page.getByText(/Your free Pro days are over and you're on Freemium, the plan you paid for/)).toBeVisible();
     await page.goto("/app/billing");
-    await expect(page.getByText("Customers", { exact: true }).locator("..")).toContainText("0 / 100"); // Freemium's customer limit
+    await expect(page.locator("main").getByText("Customers", { exact: true }).locator("..")).toContainText("0 / 100"); // Freemium's customer limit
   });
 });

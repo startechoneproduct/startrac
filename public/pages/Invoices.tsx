@@ -33,7 +33,7 @@ const VIEWS = [["all", "All"], ["unpaid", "Unpaid"], ["overdue", "Overdue"], ["p
 const PER = 12;
 
 export function Invoices() {
-  const { currency } = useSession();
+  const { currency, can } = useSession();
   const [view, setView] = useState<(typeof VIEWS)[number][0]>("all");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
@@ -54,7 +54,7 @@ export function Invoices() {
       <PageHeader
         title="Invoices"
         subtitle="Bill a customer now, get paid later. Issuing takes the stock out and puts the amount on their account; payments clear it."
-        actions={<><Button variant="outline" onClick={() => setSettingsOpen(true)}><Settings2 className="w-4 h-4" /> Settings</Button><Button onClick={() => setEditing({ id: null })}><Plus className="w-4 h-4" /> New invoice</Button></>}
+        actions={<>{can("settings") && <Button variant="outline" onClick={() => setSettingsOpen(true)}><Settings2 className="w-4 h-4" /> Settings</Button>}{can("invoices") && <Button onClick={() => setEditing({ id: null })}><Plus className="w-4 h-4" /> New invoice</Button>}</>}
       />
 
       {sum && (
@@ -83,7 +83,7 @@ export function Invoices() {
       </div>
 
       {loading && !data ? <div className="py-16"><Spinner /></div> : !data || !data.invoices.length ? (
-        <Card><EmptyState icon={FileText} title={q || view !== "all" ? "No invoices match" : "No invoices yet"} body={q || view !== "all" ? "Try another filter." : "Create your first invoice, send it by WhatsApp, email or link, and record payments as they come in."} action={!q && view === "all" ? <Button onClick={() => setEditing({ id: null })}><Plus className="w-4 h-4" /> New invoice</Button> : undefined} /></Card>
+        <Card><EmptyState icon={FileText} title={q || view !== "all" ? "No invoices match" : "No invoices yet"} body={q || view !== "all" ? "Try another filter." : "Create your first invoice, send it by WhatsApp, email or link, and record payments as they come in."} action={!q && view === "all" && can("invoices") ? <Button onClick={() => setEditing({ id: null })}><Plus className="w-4 h-4" /> New invoice</Button> : undefined} /></Card>
       ) : (
         <Card className="overflow-hidden">
           <div className="divide-y divide-line">
@@ -120,6 +120,7 @@ export function Invoices() {
 
 function InvoiceModal({ id, money, onClose, onChanged, onEdit }: { id: string | null; money: (n: number) => string; onClose: () => void; onChanged: () => void; onEdit: (i: Inv) => void }) {
   const { data, loading, reload } = useApi<{ invoice: Inv }>(id ? `/invoices/${id}` : null, [id]);
+  const { can } = useSession();
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
@@ -183,7 +184,7 @@ function InvoiceModal({ id, money, onClose, onChanged, onEdit }: { id: string | 
           {inv.status === "void" && <div className="rounded-xl bg-surface-3 text-t2 px-3.5 py-2.5 text-[13px]">Voided{inv.voidInfo?.by ? ` by ${inv.voidInfo.by}` : ""}: {inv.voidInfo?.reason}</div>}
 
           {/* draft: edit, issue, delete */}
-          {inv.status === "draft" && (
+          {inv.status === "draft" && can("invoices") && (
             <div className="flex items-center gap-2 flex-wrap">
               <Button onClick={() => run("issue", () => post("issue"))} disabled={!!busy}><Send className="w-4 h-4" /> {busy === "issue" ? "Issuing…" : "Issue invoice"}</Button>
               <Button variant="outline" onClick={() => onEdit(inv)} disabled={!!busy}>Edit</Button>
@@ -197,7 +198,7 @@ function InvoiceModal({ id, money, onClose, onChanged, onEdit }: { id: string | 
             <>
               {!pay ? (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Button onClick={() => setPay({ method: "transfer", amount: String(inv.balance), note: "" })}><Banknote className="w-4 h-4" /> Record payment</Button>
+                  {can("invoice_payments") && <Button onClick={() => setPay({ method: "transfer", amount: String(inv.balance), note: "" })}><Banknote className="w-4 h-4" /> Record payment</Button>}
                   {inv.balance > 0 && <Button variant="outline" onClick={() => send("whatsapp", "reminder")} disabled={!!busy}><MessageCircle className="w-4 h-4" /> Send reminder</Button>}
                 </div>
               ) : (
@@ -241,14 +242,14 @@ function InvoiceModal({ id, money, onClose, onChanged, onEdit }: { id: string | 
                     <span className="text-t4 w-[100px] shrink-0">{fmtDate(p.at)}</span>
                     <span className="font-mono font-semibold text-t1">{money(p.amount)}</span>
                     <span className="capitalize">{p.method}</span>{p.note && <span className="text-t3">· {p.note}</span>}
-                    {inv.status !== "void" && <button className="ml-auto text-[11.5px] text-t4 hover:text-danger" onClick={() => { if (confirm("Remove this payment? The balance goes back up.")) run("rm", () => api(`/invoices/${id}/payments/${p.id}`, { method: "DELETE" })); }}>Remove</button>}
+                    {inv.status !== "void" && can("invoices_void") && <button className="ml-auto text-[11.5px] text-t4 hover:text-danger" onClick={() => { if (confirm("Remove this payment? The balance goes back up.")) run("rm", () => api(`/invoices/${id}/payments/${p.id}`, { method: "DELETE" })); }}>Remove</button>}
                   </li>
                 ))}
               </ul>
             </div>
           )}
 
-          {["issued", "partial", "paid"].includes(inv.status) && (
+          {["issued", "partial", "paid"].includes(inv.status) && can("invoices_void") && (
             !voiding ? (
               <button className="text-[12px] text-t4 hover:text-danger inline-flex items-center gap-1" onClick={() => setVoiding(true)}><Ban className="w-3.5 h-3.5" /> Void this invoice</button>
             ) : (

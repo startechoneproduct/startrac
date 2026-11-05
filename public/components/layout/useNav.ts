@@ -22,6 +22,10 @@ export function useNavGroups(): { groups: NavGroup[]; active: NavGroup | undefin
         ?.filter((c) => (!c.perm || can(c.perm)) && (!c.module || hasModule(c.module)) && (!c.capability || hasCapability(c.capability)))
         .map((c) => ({ ...c, locked: !!c.feature && !hasFeature(c.feature) })),
     }))
+    // A section shows only if this person can open at least one of its pages,
+    // and it opens on the first one their plan includes.
+    .filter((g) => !g.children || g.children.length > 0)
+    .map((g) => (g.children ? { ...g, to: (g.children.find((c) => !c.locked) ?? g.children[0]).to } : g))
     // A section with a single page is just that page; don't show a strip of one.
     .map((g) => ({ ...g, children: (g.children?.length ?? 0) > 1 ? g.children : undefined }));
 

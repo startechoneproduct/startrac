@@ -5,7 +5,7 @@ import { Branch } from "#modules/business/branch.model.js";
 import { Product } from "#modules/products/product.model.js";
 import { Inventory } from "#modules/inventory/inventory.model.js";
 import { DailyMetric } from "#modules/metrics/dailyMetric.model.js";
-import { permsForRole } from "#modules/auth/auth.service.js";
+import { permsForMembership } from "#modules/auth/auth.service.js";
 import { dayOffset, localDay } from "#modules/metrics/metrics.service.js";
 import { money } from "#core/money.js";
 import { Account } from "#modules/auth/account.model.js";
@@ -54,7 +54,7 @@ overviewRouter.get("/", async (req, res) => {
   const permsFor = (businessId) => {
     const scoped = memberships.find((m) => m.businessId && String(m.businessId) === String(businessId));
     const m = scoped || accountWide;
-    return m ? permsForRole(m.role, m.permsOverride || []) : null;
+    return m ? permsForMembership(m) : null;
   };
   const businesses = allBusinesses.filter((b) => {
     const p = permsFor(b._id);

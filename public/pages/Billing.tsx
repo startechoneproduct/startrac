@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Fragment } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AlertTriangle, ArrowRight, Check, CheckCircle2, Crown, Loader2, Minus, ShieldCheck, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -209,8 +209,8 @@ export function Billing() {
             </thead>
             <tbody>
               {COMPARE.map((g) => (
-                <>
-                  <tr key={g.title} className="bg-surface-2"><td colSpan={4} className="px-5 py-2 text-[11.5px] font-bold uppercase tracking-[0.1em] text-t3">{g.title}</td></tr>
+                <Fragment key={g.title}>
+                  <tr className="bg-surface-2"><td colSpan={4} className="px-5 py-2 text-[11.5px] font-bold uppercase tracking-[0.1em] text-t3">{g.title}</td></tr>
                   {g.rows.map((r) => (
                     <tr key={g.title + r.label} className="border-b border-line last:border-0">
                       <td className="px-5 py-3 text-t2">{r.label}</td>
@@ -219,7 +219,7 @@ export function Billing() {
                       <td className="px-3 py-3 text-center"><Cell v={r.business} /></td>
                     </tr>
                   ))}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>

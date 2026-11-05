@@ -8,7 +8,7 @@ import { Membership } from "#modules/auth/membership.model.js";
 import { Branch } from "#modules/business/branch.model.js";
 import { Shift } from "#modules/staff/shift.model.js";
 import { RosterEntry } from "#modules/staff/rosterEntry.model.js";
-import { hashPassword, permsForRole, overridesProblem } from "#modules/auth/auth.service.js";
+import { hashPassword, permsForMembership, roleDefaults, overridesProblem } from "#modules/auth/auth.service.js";
 import { requirePerm, requireBranch, limitProblem } from "#core/middleware/tenant.js";
 import { audit } from "#core/audit.js";
 import { localDay } from "#modules/metrics/metrics.service.js";
@@ -28,7 +28,9 @@ function shape(m, user, branch, shift, reportsToUser) {
     branchId: m.branchId || null,
     branchName: branch?.name || "All branches",
     permsOverride: m.permsOverride,
-    permissions: permsForRole(m.role, m.permsOverride),
+    permsRevoked: m.permsRevoked || [],
+    roleDefaults: roleDefaults(m.role),
+    permissions: permsForMembership(m),
     hasPin: !!m.pinHash,
     shiftId: m.shiftId || null,
     shiftName: shift ? `${shift.name} (${shift.start}–${shift.end})` : "",
@@ -55,7 +57,7 @@ function teamFilter(req) {
 }
 
 // GET /api/staff[?scope=all] — the team for the active branch of the active business
-staffRouter.get("/", requirePerm("staff_mgmt"), async (req, res) => {
+staffRouter.get("/", requirePerm("staff_view"), async (req, res) => {
   const memberships = await Membership.find(teamFilter(req)).sort({ createdAt: 1 });
   const users = await User.find({ _id: { $in: memberships.map((m) => m.userId) } }).select("name email status");
   const branches = await Branch.find({ businessId: req.ctx.businessId }).select("name");
@@ -78,7 +80,7 @@ staffRouter.get("/", requirePerm("staff_mgmt"), async (req, res) => {
 // role ladder (owner/admin/manager/staff) is unaffected by this view.
 // Everyone is included, whichever branch is selected: it's the company's chart.
 const ROLE_ORDER = { owner: 0, admin: 1, manager: 2, staff: 3 };
-staffRouter.get("/org-chart", requirePerm("staff_mgmt"), async (req, res) => {
+staffRouter.get("/org-chart", requirePerm("staff_view"), async (req, res) => {
   const memberships = await Membership.find({
     accountId: req.ctx.accountId, status: "active",
     $or: [{ businessId: req.ctx.businessId }, { businessId: null }],
@@ -133,7 +135,7 @@ staffRouter.get("/org-chart", requirePerm("staff_mgmt"), async (req, res) => {
 // ── Shifts ───────────────────────────────────────────────────
 
 // GET /api/staff/shifts
-staffRouter.get("/shifts", requirePerm("staff_mgmt"), async (req, res) => {
+staffRouter.get("/shifts", requirePerm("staff_view"), async (req, res) => {
   const shifts = await Shift.find({ businessId: req.ctx.businessId }).sort({ start: 1 });
   res.json({ shifts: shifts.map((s) => ({ id: s._id, name: s.name, start: s.start, end: s.end })) });
 });
@@ -349,6 +351,50 @@ staffRouter.patch("/:id", requirePerm("staff_mgmt"), async (req, res) => {
   const reportsTo = membership.reportsToId ? await Membership.findById(membership.reportsToId) : null;
   const reportsToUser = reportsTo ? await User.findById(reportsTo.userId).select("name") : null;
   res.json({ staff: shape(membership, user, branch, shift, reportsToUser) });
+});
+
+const permissionsSchema = z.object({ permissions: z.array(z.string()) });
+
+// PUT /api/staff/:id/permissions — set exactly what this person may do.
+// Stored as the difference from their role: what was given on top
+// (permsOverride) and what was taken away (permsRevoked), so a later role
+// change still starts from the new role's defaults.
+staffRouter.put("/:id/permissions", requirePerm("staff_perms"), async (req, res) => {
+  const parsed = permissionsSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "invalid", message: parsed.error.issues[0].message });
+
+  const membership = await Membership.findOne({ _id: req.params.id, accountId: req.ctx.accountId, businessId: req.ctx.businessId });
+  if (!membership) return res.status(404).json({ error: "not_found", message: "Staff member not found." });
+  if (membership.role === "owner") {
+    return res.status(403).json({ error: "forbidden", message: "The owner always has full access." });
+  }
+  if (membership.role === "admin" && !req.ctx.perms.includes("*")) {
+    return res.status(403).json({ error: "forbidden", message: "Only the owner can change an admin's permissions." });
+  }
+  if (String(membership.userId) === String(req.ctx.userId) && !req.ctx.perms.includes("*")) {
+    return res.status(403).json({ error: "forbidden", message: "You can't change your own permissions." });
+  }
+
+  const wanted = new Set(parsed.data.permissions);
+  const defaults = roleDefaults(membership.role);
+  const granted = [...wanted].filter((p) => !defaults.includes(p));
+  const revoked = defaults.filter((p) => !wanted.has(p));
+  // Giving is capped by the giver's own access; taking away is not.
+  const problem = overridesProblem(req.ctx.perms, granted);
+  if (problem) return res.status(403).json({ error: "forbidden", message: problem });
+
+  const before = { permsOverride: membership.permsOverride, permsRevoked: membership.permsRevoked };
+  membership.permsOverride = granted;
+  membership.permsRevoked = revoked;
+  await membership.save();
+
+  const user = await User.findById(membership.userId).select("name email");
+  audit(req.ctx, "staff.permissions", { type: "staff", id: membership._id, label: user?.name || "" }, before, {
+    permsOverride: granted,
+    permsRevoked: revoked,
+  });
+  const branch = membership.branchId ? await Branch.findById(membership.branchId) : null;
+  res.json({ staff: shape(membership, user, branch, null, null) });
 });
 
 // POST /api/staff/:id/pin — reset a till PIN

@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { PageHeader, Spinner } from "@/components/ui/EmptyState";
 import { ErrorBanner, Field, Input } from "@/components/ui/Field";
+import { CurrencySelect } from "@/components/ui/CurrencySelect";
+import { findCurrency } from "#shared/currencies.js";
 import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
@@ -33,8 +35,10 @@ export function MyBusinesses() {
   const [adding, setAdding] = useState(false);
 
   const businesses = data?.businesses || [];
-  const totalToday = businesses.reduce((s, b) => s + b.todayRevenue, 0);
-  const currency = businesses[0]?.currency || "₦";
+  // Money in different currencies is never added together: one total per currency.
+  const byCurrency = new Map<string, number>();
+  for (const b of businesses) byCurrency.set(b.currency || "₦", (byCurrency.get(b.currency || "₦") || 0) + b.todayRevenue);
+  const takenToday = [...byCurrency.entries()].map(([cur, n]) => fmtMoney(n, cur)).join(" + ");
 
   function open(b: Biz) {
     setActiveBusiness(b.id);
@@ -59,7 +63,7 @@ export function MyBusinesses() {
             ["Businesses", String(businesses.length)],
             ["Branches", String(businesses.reduce((s, b) => s + b.branches.length, 0))],
             ["People", String(businesses.reduce((s, b) => s + b.staff, 0))],
-            ["Taken today", fmtMoney(totalToday, currency)],
+            ["Taken today", takenToday],
           ].map(([l, v]) => (
             <Card key={l} className="p-3.5">
               <div className="text-[11.5px] font-medium tracking-[0.09em] text-t3">{l}</div>
@@ -156,7 +160,10 @@ export function MyBusinesses() {
 }
 
 function AddBusiness({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState({ name: "", businessType: "", tradingName: "", branchName: "Main Branch", currency: "₦" });
+  const { activeBusiness } = useSession();
+  // A new business starts in the currency of the one you are in.
+  const startCurrency = findCurrency(activeBusiness?.settings.currency)?.code || "NGN";
+  const [form, setForm] = useState({ name: "", businessType: "", tradingName: "", branchName: "Main Branch", currency: startCurrency });
   const [q, setQ] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -173,7 +180,7 @@ function AddBusiness({ open, onClose, onSaved }: { open: boolean; onClose: () =>
     setBusy(true); setError("");
     try {
       await api("/settings/businesses", { method: "POST", body: JSON.stringify(form) });
-      setForm({ name: "", businessType: "", tradingName: "", branchName: "Main Branch", currency: "₦" });
+      setForm({ name: "", businessType: "", tradingName: "", branchName: "Main Branch", currency: startCurrency });
       onSaved();
       window.location.reload(); // the switcher reads businesses from the session
     } catch (err: any) {
@@ -189,6 +196,7 @@ function AddBusiness({ open, onClose, onSaved }: { open: boolean; onClose: () =>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Business name"><Input autoFocus required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Tado Pharmacy" /></Field>
           <Field label="First branch"><Input value={form.branchName} onChange={(e) => setForm({ ...form, branchName: e.target.value })} /></Field>
+          <Field label="Currency"><CurrencySelect value={form.currency} onChange={(code) => setForm({ ...form, currency: code })} /></Field>
         </div>
 
         <div>

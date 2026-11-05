@@ -151,7 +151,7 @@ const uniqueList = (list) => [...new Set(list)];
 const TARGETS = {
   products: {
     key: "products",
-    perm: "prices",
+    perm: "products_add",
     available: () => true,
     label: (tpl) => tpl.terminology?.products || "Products",
     singular: "item",

@@ -4,7 +4,7 @@ import { Product } from "#modules/products/product.model.js";
 import { Inventory } from "#modules/inventory/inventory.model.js";
 import { StockMovement } from "#modules/inventory/stockMovement.model.js";
 import { Sale } from "#modules/sales/sale.model.js";
-import { requirePerm, requireBranch, requireFeature, canSeeCost, limitProblem } from "#core/middleware/tenant.js";
+import { requirePerm, requireBranch, requireFeature, canSeeCost, limitProblem, planRequired } from "#core/middleware/tenant.js";
 import { applyMovement, openStockInBulk } from "#modules/inventory/inventory.service.js";
 import { afterStockChange } from "#modules/alerts/alerts.service.js";
 import { scopedToBranch, ownerBranchForNew } from "#core/branchScope.js";
@@ -14,6 +14,10 @@ import { clean, normKey, parseCount, parseMoney } from "#modules/imports/values.
 import { money } from "#core/money.js";
 import { audit } from "#core/audit.js";
 import { escapeRegex } from "#core/regex.js";
+import { Branch } from "#modules/business/branch.model.js";
+import { planAllows } from "#shared/plans.js";
+import { renderPdf } from "#modules/reports/renderPdf.js";
+import { renderXlsx } from "#modules/reports/renderXlsx.js";
 
 /**
  * The inventory hub: one place to see what's on the shelf, what it's worth, what
@@ -27,7 +31,7 @@ import { escapeRegex } from "#core/regex.js";
 export const inventoryHubRouter = Router();
 
 const DAY = 86_400_000;
-const canRead = requirePerm("stock", "dashboard_ops");
+const canRead = requirePerm("inventory_view");
 
 /** Stock products of this business that the active store sells, with the branch's level joined on. */
 function stockPipeline(ctx, extraMatch = {}) {
@@ -57,17 +61,28 @@ function shapeRow(p, showCost) {
   };
 }
 
-// GET /api/inventory/overview?q=&category=&status=all|low|out|ok&sort=&page=&limit=
-inventoryHubRouter.get("/overview", canRead, requireBranch, async (req, res) => {
-  const showCost = canSeeCost(req.ctx);
+/**
+ * The list's filters: a search, a category, and a stock status — ok / low /
+ * out, or "instock" for everything with at least one on the shelf (the
+ * "hide zero stock" view). Shared by the screen and every export, so a file
+ * always holds exactly what was on screen.
+ */
+function listFilters(req) {
   const extra = {};
   if (req.query.q) {
     const rx = { $regex: escapeRegex(String(req.query.q).trim().slice(0, 60)), $options: "i" };
     extra.$or = [{ name: rx }, { sku: rx }, { barcode: rx }];
   }
   if (req.query.category) extra.category = String(req.query.category);
+  const status = ["low", "out", "ok", "instock"].includes(String(req.query.status)) ? String(req.query.status) : null;
+  const statusStage = status === "instock" ? [{ $match: { stock: { $gt: 0 } } }] : status ? [{ $match: { stockStatus: status } }] : [];
+  return { extra, status, statusStage };
+}
 
-  const status = ["low", "out", "ok"].includes(String(req.query.status)) ? String(req.query.status) : null;
+// GET /api/inventory/overview?q=&category=&status=all|low|out|ok|instock&sort=&page=&limit=
+inventoryHubRouter.get("/overview", canRead, requireBranch, async (req, res) => {
+  const showCost = canSeeCost(req.ctx);
+  const { extra, statusStage } = listFilters(req);
   const sorts = {
     name: { name: 1 }, stock: { stock: 1, name: 1 }, "-stock": { stock: -1, name: 1 },
     value: { stockValue: -1, name: 1 }, status: { statusRank: 1, stock: 1, name: 1 },
@@ -80,7 +95,7 @@ inventoryHubRouter.get("/overview", canRead, requireBranch, async (req, res) => 
   const [rows, summary, categories] = await Promise.all([
     Product.aggregate([
       ...base,
-      ...(status ? [{ $match: { stockStatus: status } }] : []),
+      ...statusStage,
       { $addFields: { statusRank: { $switch: { branches: [{ case: { $eq: ["$stockStatus", "out"] }, then: 0 }, { case: { $eq: ["$stockStatus", "low"] }, then: 1 }], default: 2 } } } },
       { $sort: sort },
       { $facet: { page: [{ $skip: (page - 1) * limit }, { $limit: limit }], total: [{ $count: "n" }] } },
@@ -163,7 +178,7 @@ inventoryHubRouter.get("/movers", canRead, requireBranch, async (req, res) => {
 });
 
 // GET /api/inventory/export.csv — the whole shelf, for a spreadsheet or an accountant
-inventoryHubRouter.get("/export.csv", canRead, requireBranch, async (req, res) => {
+inventoryHubRouter.get("/export.csv", requirePerm("inventory_export"), requireBranch, async (req, res) => {
   const showCost = canSeeCost(req.ctx);
   const rows = await Product.aggregate([...stockPipeline(req.ctx), { $sort: { name: 1 } }]);
   const cell = (v) => {
@@ -179,6 +194,90 @@ inventoryHubRouter.get("/export.csv", canRead, requireBranch, async (req, res) =
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename="inventory-${new Date().toISOString().slice(0, 10)}.csv"`);
   res.send("﻿" + lines.join("\r\n"));
+});
+
+const STATUS_LABEL = { ok: "In stock", low: "Low", out: "Out of stock" };
+const FILTER_LABEL = { ok: "In stock (above reorder level)", low: "Low stock", out: "Out of stock only", instock: "Hiding zero stock" };
+
+// GET /api/inventory/export?format=pdf|xlsx|csv&q=&category=&status=&inline=1
+// The list as it is filtered on screen. PDF and Excel are the Pro reports
+// (same look as every other report); CSV stays on every plan. inline=1 opens
+// the PDF in the browser to print, instead of downloading it.
+inventoryHubRouter.get("/export", requirePerm("inventory_export"), requireBranch, async (req, res) => {
+  const format = ["pdf", "xlsx", "csv"].includes(String(req.query.format)) ? String(req.query.format) : "pdf";
+  if (format !== "csv" && !planAllows(req.ctx.plan, "reports")) return res.status(403).json(planRequired("reports"));
+  const showCost = canSeeCost(req.ctx);
+  const { extra, status, statusStage } = listFilters(req);
+  const rows = await Product.aggregate([...stockPipeline(req.ctx, extra), ...statusStage, { $sort: { category: 1, name: 1 } }]);
+  const day = new Date().toISOString().slice(0, 10);
+
+  if (format === "csv") {
+    const cell = (v) => {
+      let t = String(v ?? "");
+      if (/^[=+\-@]/.test(t)) t = `'${t}`;
+      return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+    };
+    const head = ["Name", "SKU", "Barcode", "Category", "Unit", "In stock", "Reorder level", "Status", "Selling price", "Retail value", ...(showCost ? ["Cost", "Stock value"] : [])];
+    const lines = [head.join(",")];
+    for (const p of rows) lines.push([p.name, p.sku, p.barcode, p.category, p.unit, p.stock, p.reorderLevel, STATUS_LABEL[p.stockStatus], p.price, money(p.retailValue), ...(showCost ? [p.cost || 0, money(p.stockValue)] : [])].map(cell).join(","));
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="inventory-${day}.csv"`);
+    return res.send("\uFEFF" + lines.join("\r\n"));
+  }
+
+  const branch = await Branch.findById(req.ctx.branchId).select("name");
+  const units = rows.reduce((t, p) => t + Math.max(0, p.stock), 0);
+  const retail = money(rows.reduce((t, p) => t + (p.retailValue || 0), 0));
+  const cost = money(rows.reduce((t, p) => t + (p.stockValue || 0), 0));
+  const filters = [status && FILTER_LABEL[status], req.query.category && `Category: ${req.query.category}`, req.query.q && `Search: "${String(req.query.q).slice(0, 60)}"`].filter(Boolean);
+  const report = {
+    kind: "inventory",
+    title: "Inventory",
+    subtitle: filters.length ? filters.join(" · ") : "Every stock product",
+    currency: req.ctx.business?.settings?.currency || "₦",
+    business: { name: req.ctx.business?.name || "Business", type: req.ctx.business?.typeKey || "" },
+    branch: branch?.name || "",
+    period: { label: `Stock on ${day}`, from: day, to: day, days: 1 },
+    generatedAt: new Date().toISOString(),
+    generatedBy: req.ctx.actorName || "",
+    highlights: [],
+    kpis: [
+      { label: "Products", value: rows.length, format: "int" },
+      { label: "Units on hand", value: units, format: "int" },
+      { label: "Value at selling price", value: retail, format: "money" },
+      ...(showCost ? [{ label: "Value at cost", value: cost, format: "money" }] : [{ label: "Out of stock", value: rows.filter((p) => p.stock <= 0).length, format: "int" }]),
+    ],
+    sections: [{
+      title: "Stock",
+      columns: [
+        { key: "name", label: "Product", format: "text" },
+        { key: "category", label: "Category", format: "text" },
+        { key: "sku", label: "SKU", format: "text" },
+        { key: "stock", label: "In stock", format: "decimal", align: "right" },
+        { key: "unit", label: "Unit", format: "text" },
+        { key: "status", label: "Status", format: "text" },
+        { key: "price", label: "Price", format: "money", align: "right" },
+        { key: "retailValue", label: "Retail value", format: "money", align: "right" },
+        ...(showCost ? [{ key: "cost", label: "Cost", format: "money", align: "right" }, { key: "stockValue", label: "Value at cost", format: "money", align: "right" }] : []),
+      ],
+      rows: rows.map((p) => ({
+        name: p.name, category: p.category || "", sku: p.sku || "", stock: p.stock, unit: p.unit || "unit", status: STATUS_LABEL[p.stockStatus],
+        price: p.price, retailValue: money(p.retailValue || 0), ...(showCost ? { cost: p.cost || 0, stockValue: money(p.stockValue || 0) } : {}),
+      })),
+      totals: { name: `${rows.length} products`, stock: units, retailValue: retail, ...(showCost ? { stockValue: cost } : {}) },
+    }],
+  };
+  if (rows.some((p) => p.stock <= 0) && status !== "out") report.highlights.push(`${rows.filter((p) => p.stock <= 0).length} of these are out of stock.`);
+
+  const buffer = format === "xlsx" ? await renderXlsx(report) : await renderPdf(report);
+  audit(req.ctx, "report.download", { type: "report", label: `Inventory (${format.toUpperCase()})` });
+  res.set({
+    "Content-Type": format === "xlsx" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "application/pdf",
+    "Content-Disposition": `${req.query.inline === "1" && format === "pdf" ? "inline" : "attachment"}; filename="inventory-${day}.${format}"`,
+    "Content-Length": buffer.length,
+    "Cache-Control": "no-store",
+  });
+  res.send(buffer);
 });
 
 // GET /api/inventory/reorder — what to buy, how many, and from whom
@@ -238,7 +337,7 @@ const SPEC = {
   reorderLevel: ["reorder level", "reorder", "min stock", "minimum", "reorder point"],
 };
 
-inventoryHubRouter.post("/import", requirePerm("stock"), requireFeature("csvImport"), requireBranch, upload.single("file"), async (req, res) => {
+inventoryHubRouter.post("/import", requirePerm("stock_in"), requireFeature("csvImport"), requireBranch, upload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "invalid", message: "Choose a file to upload." });
   let parsed;
   try {

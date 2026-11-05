@@ -70,7 +70,7 @@ export function Tickets() {
     }
   }, [searchParams, setSearchParams]);
 
-  const query = `/tickets?${status !== "all" ? `status=${status}&` : ""}${q ? `q=${encodeURIComponent(q)}&` : ""}page=${page}&limit=${PAGE}`;
+  const query = `/tickets?scope=business&${status !== "all" ? `status=${status}&` : ""}${q ? `q=${encodeURIComponent(q)}&` : ""}page=${page}&limit=${PAGE}`;
   const { data, loading, reload } = useApi<{
     tickets: Ticket[]; page: number; pages: number; total: number; canManage: boolean; statusCounts: Record<string, number>;
   }>(query, [activeBranch?.id]);

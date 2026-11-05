@@ -31,6 +31,7 @@ import { auditRouter } from "#modules/audit/audit.routes.js";
 import { notificationsRouter } from "#modules/alerts/notifications.routes.js";
 import { jobsRouter } from "#modules/jobs/jobs.routes.js";
 import { platformRouter } from "#modules/platform/platform.routes.js";
+import { deskRouter } from "#modules/support/desk.routes.js";
 import { tasksRouter } from "#modules/tasks/tasks.routes.js";
 import { announcementsRouter } from "#modules/announcements/announcements.routes.js";
 import { ticketsRouter } from "#modules/support/tickets.routes.js";
@@ -71,8 +72,10 @@ import { invoicesRouter } from "#modules/invoices/invoices.routes.js";
 import { invoicesPublicRouter } from "#modules/invoices/invoices.public.routes.js";
 import { receiptPublicRouter } from "#modules/sales/receipt.public.routes.js";
 import { purchaseOrdersRouter } from "#modules/inventory/purchaseOrders.routes.js";
+import { stockReceiptsRouter } from "#modules/inventory/stockReceipts.routes.js";
 import { customersImportRouter } from "#modules/customers/customers.import.routes.js";
 import { storefrontPublicRouter } from "#modules/storefront/storefront.public.routes.js";
+import { logoPublicRouter } from "#modules/business/logo.public.routes.js";
 
 /**
  * The whole API, and nothing else — no static-file serving, no app.listen(),
@@ -128,12 +131,14 @@ app.use("/api/stock-counts", tenant, requireFeature("stockCount"), stockCountRou
 app.use("/api/inventory", tenant, inventoryRouter);
 // The inventory hub: overview, valuation, movers, reorder suggestions, opening-stock import.
 app.use("/api/inventory", tenant, inventoryHubRouter);
+// Deliveries received (goods received notes), their paperwork, and spreadsheet-filled deliveries.
+app.use("/api/stock-receipts", tenant, stockReceiptsRouter);
 app.use("/api/purchase-orders", tenant, requireFeature("suppliers"), purchaseOrdersRouter);
 // Upload past sales so reports start with the business's real history.
 app.use("/api/history-import", tenant, requireFeature("csvImport"), salesHistoryRouter);
 // Invoices: bill customers, track what they owe, take part-payments.
 // Invoices put money on a customer's account, so till staff (who only have "sales") are kept out.
-app.use("/api/invoices", tenant, requirePerm("customers", "dashboard_ops"), requireFeature("invoices"), invoicesRouter);
+app.use("/api/invoices", tenant, requirePerm("invoices", "invoice_payments", "invoices_void", "dashboard_ops"), requireFeature("invoices"), invoicesRouter);
 app.use("/api/sales", tenant, salesRouter);
 app.use("/api/returns", tenant, requireFeature("returns"), returnsRouter);
 app.use("/api/customers/import", tenant, requireFeature("csvImport"), customersImportRouter);
@@ -177,12 +182,15 @@ app.use("/api/public/sites", sitePublicRouter);
 // A customer opening the invoice link they were sent.
 app.use("/api/public/invoices", invoicesPublicRouter);
 app.use("/api/public/receipts", receiptPublicRouter);
+// A business's logo, for receipts and invoices opened without signing in.
+app.use("/api/public/logo", logoPublicRouter);
 // The customer side of a business's page: register, sign in, browse, order.
 app.use("/api/public/store/:slug", storefrontPublicRouter);
 
 // StarTrack's own staff, looking across every tenant. Deliberately NOT behind
 // `tenant` — it carries its own gate (see platform.routes.js).
 app.use("/api/platform", platformRouter);
+app.use("/api/desk", deskRouter);
 
 // Unknown API routes are a 404 in JSON — never the HTML app shell, which
 // would turn a typo'd endpoint into a confusing 200.

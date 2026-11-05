@@ -39,6 +39,10 @@ const customerSchema = new mongoose.Schema(
     // CustomerLedgerEntry, the same relationship Inventory.stock has with
     // StockMovement. Positive = the customer owes this business money.
     creditBalance: { type: Number, default: 0 },
+    // Store credit: what this business owes the customer (from returns taken
+    // as credit or exchanged), spendable at the till. Kept apart from
+    // creditBalance above, which runs the other way. Ledger: StoreCreditEntry.
+    storeCredit: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

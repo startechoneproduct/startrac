@@ -1,4 +1,5 @@
-import { ScrollText, Tag, Undo2, UserCog, Settings as SettingsIcon, Ban, Boxes, MapPin } from "lucide-react";
+import { ScrollText, Tag, Undo2, UserCog, Settings as SettingsIcon, Ban, Boxes, MapPin, ShieldCheck } from "lucide-react";
+import { PERMISSION_GROUPS } from "#shared/permissions.js";
 import { Badge, Card } from "@/components/ui/Card";
 import { EmptyState, PageHeader, Spinner } from "@/components/ui/EmptyState";
 import { useApi } from "@/lib/useApi";
@@ -21,12 +22,24 @@ const ACTION_META: Record<string, { label: string; icon: any; tone: "brand" | "s
   "staff.create": { label: "Staff added", icon: UserCog, tone: "success" },
   "staff.update": { label: "Staff changed", icon: UserCog, tone: "warning" },
   "staff.pin_reset": { label: "PIN reset", icon: UserCog, tone: "warning" },
+  "staff.permissions": { label: "Permissions changed", icon: ShieldCheck, tone: "warning" },
   "settings.update": { label: "Settings changed", icon: SettingsIcon, tone: "neutral" },
   "branch.create": { label: "Branch added", icon: MapPin, tone: "success" },
   "stock.adjust": { label: "Stock adjusted", icon: Boxes, tone: "warning" },
   "stock.transfer": { label: "Stock transferred", icon: Boxes, tone: "brand" },
   "expense.delete": { label: "Expense deleted", icon: Ban, tone: "danger" },
+  "expense.update": { label: "Expense changed", icon: Tag, tone: "warning" },
+  "ticket.create": { label: "Ticket raised", icon: Tag, tone: "neutral" },
+  "ticket.update": { label: "Ticket updated", icon: Tag, tone: "neutral" },
+  "ticket.help": { label: "Asked StarTrack for help", icon: Tag, tone: "brand" },
+  "ticket.escalate": { label: "Ticket sent to StarTrack", icon: Tag, tone: "brand" },
+  "expense.recurring_create": { label: "Recurring expense added", icon: Tag, tone: "neutral" },
+  "expense.recurring_update": { label: "Recurring expense changed", icon: Tag, tone: "neutral" },
+  "expense.recurring_delete": { label: "Recurring expense stopped", icon: Ban, tone: "neutral" },
+  "stock.receive": { label: "Delivery received", icon: Boxes, tone: "success" },
 };
+
+const PERMISSION_LABEL: Record<string, string> = Object.fromEntries(PERMISSION_GROUPS.flatMap((g) => g.perms.map((p) => [p.key, p.label])));
 
 function describe(e: Entry): string {
   if (e.action === "product.price_change" && e.before && e.after) {
@@ -42,6 +55,21 @@ function describe(e: Entry): string {
     if (e.before.status !== e.after.status) bits.push(`${e.after.status === "inactive" ? "suspended" : "restored"}`);
     return bits.join(", ");
   }
+  if (e.action === "staff.permissions" && e.after) {
+    const name = (k: string) => PERMISSION_LABEL[k] || k;
+    const bits = [];
+    if (e.after.permsOverride?.length) bits.push(`added: ${e.after.permsOverride.map(name).join(", ")}`);
+    if (e.after.permsRevoked?.length) bits.push(`taken away: ${e.after.permsRevoked.map(name).join(", ")}`);
+    return bits.length ? bits.join("; ") : "reset to the role's permissions";
+  }
+  if (e.action === "expense.update" && e.before && e.after) {
+    const bits = [];
+    if (e.before.amount !== e.after.amount) bits.push(`amount ${e.before.amount} → ${e.after.amount}`);
+    if (e.before.date !== e.after.date) bits.push(`date ${e.before.date} → ${e.after.date}`);
+    if (e.before.type !== e.after.type) bits.push(`category ${e.before.type} → ${e.after.type}`);
+    return bits.join(", ");
+  }
+  if (e.action === "stock.receive" && e.after) return `${e.after.lines} products, ${e.after.totalQty} units${e.after.supplier ? ` from ${e.after.supplier}` : ""}${e.after.reference ? `, invoice ${e.after.reference}` : ""}`;
   if (e.action === "stock.adjust" && e.before && e.after) return `${e.before.stock} → ${e.after.stock} ("${e.after.reason}")`;
   return "";
 }

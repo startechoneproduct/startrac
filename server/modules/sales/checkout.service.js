@@ -13,6 +13,7 @@ import { hasCapability } from "#shared/businessTypes.js";
 import { evaluateAndIssuePatronageCard } from "#modules/loyalty/loyaltyCard.service.js";
 import { scopedToBranch, ownerBranchForNew } from "#core/branchScope.js";
 import { customerRoom } from "#modules/customers/customerLimit.js";
+import { changeStoreCredit } from "#modules/customers/storeCredit.js";
 
 /**
  * The one place a sale is made: prices, totals, stock, customer tallies, loyalty
@@ -191,6 +192,8 @@ export async function runCheckout(ctx, d, opts = {}) {
     }
     const change = tendered ? money(tendered - cashDue) : 0;
 
+    const storeCreditPaid = money(d.payments.find((p) => p.method === "store_credit")?.amount || 0);
+
     // Resolve the customer before moving stock (cheap to fail early).
     let customer = null;
     let unsavedCustomerName = ""; // a name we couldn't add to the book (plan limit)
@@ -220,6 +223,13 @@ export async function runCheckout(ctx, d, opts = {}) {
                 { session }
               )
             )[0]);
+    }
+
+    if (storeCreditPaid > 0) {
+      if (!customer?._id) throw badRequest("Store credit belongs to a customer. Attach the customer to this sale first.", "needs_customer");
+      if ((customer.storeCredit || 0) + 0.001 < storeCreditPaid) {
+        throw badRequest(`${customer.name} has ${money(customer.storeCredit || 0)} in store credit, less than ${storeCreditPaid}.`, "insufficient_credit");
+      }
     }
 
     // Mint the sale id up front so every movement points at it from birth.
@@ -302,6 +312,12 @@ export async function runCheckout(ctx, d, opts = {}) {
       }],
       { session }
     );
+
+    // Paid (partly) with store credit: take it off the customer's credit in the
+    // same transaction, so the sale and the credit used commit together.
+    if (storeCreditPaid > 0) {
+      await changeStoreCredit(ctx, customer._id, -storeCreditPaid, { refType: "sale", refId: sale._id, refNo: saleNo, session });
+    }
 
     // Lets the caller commit its own change (e.g. mark an online order
     // confirmed) in the SAME transaction as the sale — both happen or neither.

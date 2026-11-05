@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { UserCog, Plus, KeyRound, Ban, CheckCircle2, Copy, Pencil, Clock, Trash2, CalendarPlus, Network } from "lucide-react";
+import { UserCog, Plus, KeyRound, Ban, CheckCircle2, Copy, Pencil, Clock, Trash2, CalendarPlus, Network, ShieldCheck } from "lucide-react";
+import { PERMISSION_GROUPS } from "#shared/permissions.js";
 import { Button } from "@/components/ui/Button";
 import { Badge, Card } from "@/components/ui/Card";
 import { EmptyState, PageHeader, Spinner } from "@/components/ui/EmptyState";
@@ -16,6 +17,8 @@ import { OrgChart } from "@/components/staff/OrgChart";
 type Staff = {
   id: string; userId: string; name: string; email: string; role: string;
   branchId: string | null; branchName: string; hasPin: boolean; status: string; permsOverride: string[];
+  // Access: what the role gives, what was taken away, and the final result.
+  permsRevoked: string[]; roleDefaults: string[]; permissions: string[];
   shiftId: string | null; shiftName: string;
   // Organizational only — never gates access. See components/staff/OrgChart.tsx.
   position: string; reportsToId: string | null; reportsToName: string;
@@ -40,7 +43,11 @@ export function Staff() {
   const [pinFor, setPinFor] = useState<Staff | null>(null);
   const [editFor, setEditFor] = useState<Staff | null>(null);
   const [rosterFor, setRosterFor] = useState<Staff | null>(null);
+  const [permsFor, setPermsFor] = useState<Staff | null>(null);
   const [chartOpen, setChartOpen] = useState(false);
+  const canManage = can("staff_mgmt");
+  // Owners set anyone's permissions; others with the right can't touch admins or themselves.
+  const canSetPerms = (s: Staff) => can("staff_perms") && (can("*") || (s.role !== "admin" && s.userId !== session?.user.id));
   const [copied, setCopied] = useState(false);
   const code = settingsData?.business.code;
   const positions = typeMeta(activeBusiness?.typeKey).positions;
@@ -64,7 +71,7 @@ export function Staff() {
         actions={
           <>
             <Button variant="secondary" onClick={() => setChartOpen(true)}><Network className="w-4 h-4" /> Org chart</Button>
-            <Button onClick={() => setAdding(true)}><Plus className="w-4 h-4" /> Add staff</Button>
+            {canManage && <Button onClick={() => setAdding(true)}><Plus className="w-4 h-4" /> Add staff</Button>}
           </>
         }
       />
@@ -127,14 +134,17 @@ export function Staff() {
                         {s.email ? ` · ${s.email}` : " · till-only (PIN)"}{s.hasPin ? "" : " · no PIN set"}
                       </div>
                     </div>
-                    {s.role !== "owner" && (
+                    {s.role !== "owner" && (canManage || canSetPerms(s)) && (
                       <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-                        <Button size="sm" variant="secondary" onClick={() => setEditFor(s)}><Pencil className="w-3.5 h-3.5" /> Edit</Button>
-                        <Button size="sm" variant="secondary" onClick={() => setPinFor(s)}><KeyRound className="w-3.5 h-3.5" /> PIN</Button>
-                        <Button size="sm" variant="secondary" onClick={() => setRosterFor(s)}><CalendarPlus className="w-3.5 h-3.5" /> Assign shift</Button>
-                        <Button size="sm" variant={s.status === "active" ? "secondary" : "success"} onClick={() => toggleStatus(s)}>
-                          {s.status === "active" ? <><Ban className="w-3.5 h-3.5" /> Suspend</> : <><CheckCircle2 className="w-3.5 h-3.5" /> Restore</>}
-                        </Button>
+                        {canSetPerms(s) && <Button size="sm" variant="secondary" onClick={() => setPermsFor(s)}><ShieldCheck className="w-3.5 h-3.5" /> Permissions</Button>}
+                        {canManage && <>
+                          <Button size="sm" variant="secondary" onClick={() => setEditFor(s)}><Pencil className="w-3.5 h-3.5" /> Edit</Button>
+                          <Button size="sm" variant="secondary" onClick={() => setPinFor(s)}><KeyRound className="w-3.5 h-3.5" /> PIN</Button>
+                          <Button size="sm" variant="secondary" onClick={() => setRosterFor(s)}><CalendarPlus className="w-3.5 h-3.5" /> Assign shift</Button>
+                          <Button size="sm" variant={s.status === "active" ? "secondary" : "success"} onClick={() => toggleStatus(s)}>
+                            {s.status === "active" ? <><Ban className="w-3.5 h-3.5" /> Suspend</> : <><CheckCircle2 className="w-3.5 h-3.5" /> Restore</>}
+                          </Button>
+                        </>}
                       </div>
                     )}
                   </div>
@@ -178,7 +188,97 @@ export function Staff() {
         onSaved={() => setRosterFor(null)}
       />
       <OrgChart open={chartOpen} onClose={() => setChartOpen(false)} />
+      <PermissionsEditor
+        key={permsFor?.id ?? "perms-closed"}
+        staff={permsFor}
+        onClose={() => setPermsFor(null)}
+        onSaved={() => { setPermsFor(null); reload(); }}
+      />
     </div>
+  );
+}
+
+/**
+ * The permission grid for one person. Each tick starts from their role; the
+ * owner can add anything on top or take anything away. Saving sends the final
+ * list and the server works out what differs from the role.
+ */
+function PermissionsEditor({ staff, onClose, onSaved }: { staff: Staff | null; onClose: () => void; onSaved: () => void }) {
+  const { can } = useSession();
+  const [chosen, setChosen] = useState<Set<string>>(() => new Set(staff?.permissions || []));
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (!staff) return null;
+  const defaults = new Set(staff.roleDefaults);
+  const added = [...chosen].filter((p) => !defaults.has(p)).length;
+  const removed = [...defaults].filter((p) => !chosen.has(p)).length;
+
+  function toggle(key: string) {
+    setChosen((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
+  async function save() {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/staff/${staff!.id}/permissions`, { method: "PUT", body: JSON.stringify({ permissions: [...chosen] }) });
+      onSaved();
+    } catch (err: any) {
+      setError(err.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Permissions for ${staff.name}`} subtitle={`Starts from what a ${staff.role} can do. Changes apply on their next action, and are recorded in the audit log.`} wide>
+      <div className="space-y-5">
+        <div className="flex items-center gap-2 flex-wrap text-[12px] text-t3">
+          <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-t4" /> From the {staff.role} role</span>
+          <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-success" /> Added for this person</span>
+          <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-danger" /> Taken away from this person</span>
+        </div>
+
+        <div className="columns-1 sm:columns-2 gap-4">
+          {PERMISSION_GROUPS.map((g) => (
+            <div key={g.key} className="rounded-xl border border-line p-3.5 mb-4 break-inside-avoid">
+              <div className="text-[12px] font-bold uppercase tracking-[0.08em] text-t3 mb-2">{g.label}</div>
+              <div className="space-y-1">
+                {g.perms.map((p) => {
+                  const on = chosen.has(p.key);
+                  const fromRole = defaults.has(p.key);
+                  // You can take anything away, but only give what you have yourself.
+                  const locked = !on && !fromRole && !can(p.key);
+                  return (
+                    <label key={p.key} className={`flex items-start gap-2.5 px-2 py-1.5 rounded-lg ${locked ? "opacity-50" : "hover:bg-surface-2 cursor-pointer"}`}>
+                      <input type="checkbox" checked={on} disabled={locked} onChange={() => toggle(p.key)} className="w-4 h-4 mt-0.5 shrink-0 accent-[var(--st-primary)]" />
+                      <span className="flex-1 text-[13px] text-t1 leading-snug">{p.label}</span>
+                      {on && !fromRole && <Badge tone="success">added</Badge>}
+                      {!on && fromRole && <Badge tone="danger">removed</Badge>}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <ErrorBanner message={error} />
+        <div className="space-y-3">
+          <p className="text-[12.5px] text-t3">
+            {added || removed ? `${added} added, ${removed} taken away compared with the ${staff.role} role.` : `Same as the ${staff.role} role.`}
+          </p>
+          <div className="flex items-center justify-end gap-2 flex-wrap">
+            <Button variant="ghost" className="mr-auto" onClick={() => setChosen(new Set(staff.roleDefaults))} disabled={busy || (!added && !removed)}>Reset to role</Button>
+            <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+            <Button onClick={save} disabled={busy}>{busy ? "Saving…" : "Save permissions"}</Button>
+          </div>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

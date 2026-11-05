@@ -166,7 +166,7 @@ export function Members() {
         </div>
       </div>
 
-      <QrScanModal open={scanOpen} onClose={() => setScanOpen(false)} onCode={onScanCode} title="Check in a member" />
+      <QrScanModal open={scanOpen} onClose={() => setScanOpen(false)} onCode={onScanCode} kind="member" />
       <SellMembershipModal open={sellOpen} onClose={() => setSellOpen(false)} onSold={() => { setSellOpen(false); reload(); }} currency={currency} />
     </div>
   );

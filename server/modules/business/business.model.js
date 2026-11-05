@@ -110,7 +110,19 @@ const businessSchema = new mongoose.Schema(
       },
     },
     settings: {
-      currency: { type: String, default: "₦" },
+      currency: { type: String, default: "₦" }, // the symbol printed on prices, receipts and reports
+      // ISO code ("NGN"). No default: businesses from before codes have only the
+      // symbol, and currencyCodeOf() works the code out from it.
+      currencyCode: { type: String },
+      // The business's own logo (bytes in FileDoc, see business/logo.js) and the
+      // contact details printed under its name on every receipt and invoice.
+      logo: {
+        fileId: { type: mongoose.Schema.Types.ObjectId, default: null },
+        mime: { type: String, default: "" },
+        version: { type: Number, default: 0 },
+      },
+      address: { type: String, default: "" },
+      phone: { type: String, default: "" },
       vatEnabled: { type: Boolean, default: false },
       vatRate: { type: Number, default: 7.5 },
       // How this business's invoices read and when they fall due.

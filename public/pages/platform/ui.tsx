@@ -1,6 +1,15 @@
 import { useId, useState, type ComponentType, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { fmtMoney } from "@/lib/format";
+import { TONES as APP_TONES } from "@/components/ui/StatCard";
+
+// The console's own figure colours: StarTechOne blue leads, its orange stands in for gold.
+const TONES = {
+  ...APP_TONES,
+  brand: { ...APP_TONES.brand, chip: "linear-gradient(135deg, #2557ad, #3a72d1)", tint: "rgba(37, 87, 173, 0.07)", glow: "rgba(37, 87, 173, 0.5)" },
+  warning: { ...APP_TONES.warning, chip: "linear-gradient(135deg, #ec782e, #f39a5c)", tint: "rgba(236, 120, 46, 0.09)", glow: "rgba(236, 120, 46, 0.5)" },
+  neutral: { ...APP_TONES.neutral, chip: "linear-gradient(135deg, #3c4a63, #7d8aa3)", tint: "rgba(60, 74, 99, 0.07)" },
+};
 
 /* Shared building blocks for the platform console. Everything reads the app's
    design tokens, so light and dark mode both work without extra code. */
@@ -21,8 +30,8 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
   return (
     <div className="flex items-end justify-between gap-4 flex-wrap mb-6">
       <div className="min-w-0">
-        <h1 className="font-display text-[26px] leading-tight font-semibold tracking-tight text-t1">{title}</h1>
-        {subtitle && <p className="text-[13.5px] text-t3 mt-1">{subtitle}</p>}
+        <h1 className="text-[22px] leading-7 font-semibold text-t1">{title}</h1>
+        {subtitle && <p className="text-[13px] text-t3 mt-1">{subtitle}</p>}
       </div>
       {actions && <div className="flex items-center gap-2 flex-wrap">{actions}</div>}
     </div>
@@ -33,12 +42,12 @@ export function Panel({ title, subtitle, action, children, className, flush }: {
   title?: string; subtitle?: string; action?: ReactNode; children: ReactNode; className?: string; flush?: boolean;
 }) {
   return (
-    <section className={cn("bg-surface border border-line rounded-2xl shadow-e1 overflow-hidden", className)}>
+    <section className={cn("bg-surface border border-line rounded-card shadow-e1 overflow-hidden min-w-0", className)}>
       {(title || action) && (
-        <header className="flex items-center justify-between gap-3 px-5 pt-4 pb-3">
+        <header className={cn("flex items-center justify-between gap-3 px-5 py-4", flush && "border-b border-line")}>
           <div className="min-w-0">
-            {title && <h2 className="text-[14px] font-semibold text-t1 truncate">{title}</h2>}
-            {subtitle && <p className="text-[12px] text-t3 mt-0.5 truncate">{subtitle}</p>}
+            {title && <h2 className="text-[15px] font-bold text-t1 leading-tight truncate">{title}</h2>}
+            {subtitle && <p className="text-[12.5px] text-t3 mt-0.5 truncate">{subtitle}</p>}
           </div>
           {action}
         </header>
@@ -67,12 +76,12 @@ export function Pill({ tone = "neutral", dot, children, className }: { tone?: To
 }
 
 const AVATAR_GRADIENTS = [
-  "linear-gradient(135deg,#0d7a5f,#46d9a0)",
-  "linear-gradient(135deg,#d9922b,#f0c36a)",
-  "linear-gradient(135deg,#c4423a,#f08a7e)",
-  "linear-gradient(135deg,#1f6f8b,#5cc0d6)",
-  "linear-gradient(135deg,#6a4c93,#b494d8)",
-  "linear-gradient(135deg,#3f7d20,#9bcf53)",
+  "linear-gradient(135deg,#2557ad,#3a72d1)",
+  "linear-gradient(135deg,#ec782e,#f39a5c)",
+  "linear-gradient(135deg,#0f9f6e,#3cc99a)",
+  "linear-gradient(135deg,#d02b3c,#f26a78)",
+  "linear-gradient(135deg,#1f6fd1,#5ca8f0)",
+  "linear-gradient(135deg,#4a5070,#8189ad)",
 ];
 
 export function Avatar({ name, size = 36, className }: { name: string; size?: number; className?: string }) {
@@ -110,20 +119,27 @@ export function Sparkline({ values, color = "var(--st-primary)", className }: { 
   );
 }
 
+/** A headline figure, drawn exactly like the business dashboard's StatCard. */
 export function KpiCard({ icon: Icon, label, value, sub, tone = "brand", spark, sparkColor }: {
   icon: ComponentType<{ className?: string; strokeWidth?: number }>;
   label: string; value: string; sub?: ReactNode; tone?: Tone; spark?: number[]; sparkColor?: string;
 }) {
+  const t = TONES[tone];
   return (
-    <div className="group relative bg-surface border border-line rounded-2xl shadow-e1 p-5 overflow-hidden transition-[border-color,box-shadow] hover:border-line-2 hover:shadow-lg2">
-      <div className="flex items-center justify-between">
-        <span className="text-[12.5px] font-medium text-t3">{label}</span>
-        <span className={cn("grid place-items-center w-8 h-8 rounded-[10px]", TONE_CHIP[tone])}>
-          <Icon className="w-4 h-4" strokeWidth={1.9} />
+    <div
+      className="group relative overflow-hidden rounded-card border border-line bg-surface p-5 shadow-e1 min-w-0 transition-[box-shadow,transform] duration-200 hover:shadow-lg2 hover:-translate-y-0.5"
+      style={{ backgroundImage: `linear-gradient(135deg, ${t.tint} 0%, transparent 58%)` }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[12.5px] font-semibold text-t3 truncate">{label}</div>
+          <div className={cn("mt-2 leading-none font-bold font-mono truncate tracking-[-0.02em] text-t1 tabular-nums", value.length > 11 ? "text-[20px]" : value.length > 7 ? "text-[23px]" : "text-[28px]")}>{value}</div>
+        </div>
+        <span className="grid place-items-center w-11 h-11 rounded-2xl text-white shrink-0" style={{ background: t.chip, boxShadow: `0 10px 18px -10px ${t.glow}` }}>
+          <Icon className="w-5 h-5" strokeWidth={1.9} />
         </span>
       </div>
-      <div className="font-display text-[28px] leading-none font-semibold tracking-tight text-t1 tabular-nums mt-3 truncate">{value}</div>
-      {sub && <div className="text-[12px] text-t3 mt-2 truncate">{sub}</div>}
+      {sub && <div className="mt-3.5 text-[12px] text-t3 truncate min-h-[20px] flex items-center">{sub}</div>}
       {spark && spark.length > 1 && <div className="mt-3 -mx-1"><Sparkline values={spark} color={sparkColor} /></div>}
     </div>
   );

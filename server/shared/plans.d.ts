@@ -3,7 +3,7 @@ export type LimitName = "businesses" | "branches" | "staff" | "products" | "cust
 export type FeatureKey =
   | "ai" | "reports" | "advancedDashboard" | "barcodes" | "loyalty" | "transfers" | "expiry" | "suppliers" | "stockCount"
   | "returns" | "attendance" | "csvImport" | "productPhotos" | "verticals" | "receiptCustom" | "receiptTemplates"
-  | "multiStore" | "sitePage" | "auditLog" | "invoices";
+  | "multiStore" | "sitePage" | "auditLog" | "invoices" | "receiptLogo";
 
 export interface PlanInfo {
   key: PlanKey;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, ArrowDownToLine, Boxes, ClipboardList, Download, Flame, Hourglass, PackageX, Search, Sliders, TrendingUp, Upload, Wallet, Warehouse } from "lucide-react";
+import { AlertTriangle, ArrowDownToLine, Boxes, ClipboardList, Download, FileDown, FileSpreadsheet, Flame, Hourglass, PackageX, Printer, Search, Sliders, TrendingUp, Upload, Wallet, Warehouse } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge, Card } from "@/components/ui/Card";
 import { EmptyState, PageHeader, Spinner } from "@/components/ui/EmptyState";
@@ -7,8 +7,8 @@ import { ErrorBanner, Field, Input, Select } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
 import { Pager } from "@/components/ui/Pager";
 import { SpreadsheetImport } from "@/components/import/SpreadsheetImport";
-import { requestUpgrade } from "@/components/plan/PlanUi";
-import { api, downloadFile } from "@/lib/api";
+import { LockChip, requestUpgrade } from "@/components/plan/PlanUi";
+import { api, apiDownload, openFile } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { useSession } from "@/lib/session";
 import { fmtMoney, fmtDate } from "@/lib/format";
@@ -31,7 +31,6 @@ export function Inventory() {
   const [tab, setTab] = useState<Tab>("stock");
   const [importing, setImporting] = useState(false);
   const [version, setVersion] = useState(0);
-  const [exportError, setExportError] = useState("");
   const bump = () => setVersion((v) => v + 1);
 
   const tabs: { key: Tab; label: string; icon: typeof Boxes; show: boolean }[] = [
@@ -49,12 +48,10 @@ export function Inventory() {
         subtitle="What's on the shelf, what it's worth, what's selling, and what to buy next"
         actions={
           <>
-            <Button variant="secondary" onClick={() => downloadFile("/inventory/export.csv", `inventory-${new Date().toISOString().slice(0, 10)}.csv`).catch((e) => setExportError(e.message))}><Download className="w-4 h-4" /> Export</Button>
-            <Button variant="secondary" onClick={() => (hasFeature("csvImport") ? setImporting(true) : requestUpgrade("csvImport"))}><Upload className="w-4 h-4" /> Import stock</Button>
+            {can("stock_in") && <Button variant="secondary" onClick={() => (hasFeature("csvImport") ? setImporting(true) : requestUpgrade("csvImport"))}><Upload className="w-4 h-4" /> Import stock</Button>}
           </>
         }
       />
-      <ErrorBanner message={exportError} />
 
       <div className="flex p-1 rounded-2xl border border-line bg-surface-2 gap-1 mb-5 w-full sm:w-fit overflow-x-auto" role="tablist">
         {tabs.filter((t) => t.show).map(({ key, label, icon: Icon }) => (
@@ -111,7 +108,19 @@ function StockTab({ canCost, currency, onChanged }: { canCost: boolean; currency
   const [sort, setSort] = useState("status");
   const [page, setPage] = useState(1);
   const [adjusting, setAdjusting] = useState<Row | null>(null);
+  const { can, hasFeature } = useSession();
   const money = (n: number) => fmtMoney(n, currency);
+  const [exportError, setExportError] = useState("");
+  // Every export holds exactly what the filters show.
+  const filterQs = `${q ? `&q=${encodeURIComponent(q)}` : ""}${category ? `&category=${encodeURIComponent(category)}` : ""}${status ? `&status=${status}` : ""}`;
+  async function exportAs(format: "pdf" | "xlsx" | "csv" | "print") {
+    if (format !== "csv" && !hasFeature("reports")) { requestUpgrade("reports"); return; }
+    setExportError("");
+    try {
+      if (format === "print") await openFile(`/inventory/export?format=pdf&inline=1${filterQs}`);
+      else await apiDownload(`/inventory/export?format=${format}${filterQs}`, `inventory.${format}`);
+    } catch (err: any) { setExportError(err.message); }
+  }
 
   const qs = `limit=${PER}&page=${page}&sort=${sort}${q ? `&q=${encodeURIComponent(q)}` : ""}${category ? `&category=${encodeURIComponent(category)}` : ""}${status ? `&status=${status}` : ""}`;
   const { data, loading, reload, error } = useApi<Overview>(`/inventory/overview?${qs}`, []);
@@ -141,13 +150,23 @@ function StockTab({ canCost, currency, onChanged }: { canCost: boolean; currency
           <option value="">All categories</option>
           {(data?.categories || []).map((c) => <option key={c} value={c}>{c}</option>)}
         </Select>
-        <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} className="!w-36" aria-label="Stock status">
-          <option value="">Any level</option><option value="ok">In stock</option><option value="low">Low</option><option value="out">Out of stock</option>
+        <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} className="!w-44" aria-label="Stock status">
+          <option value="">Any level</option><option value="instock">Hide zero stock</option><option value="ok">In stock</option><option value="low">Low</option><option value="out">Zero stock only</option>
         </Select>
         <Select value={sort} onChange={(e) => setSort(e.target.value)} className="!w-44 ml-auto" aria-label="Sort by">
           <option value="status">Needs attention first</option><option value="name">Name</option><option value="stock">Lowest stock</option><option value="-stock">Highest stock</option>{canCost && <option value="value">Highest value</option>}
         </Select>
       </div>
+      {can("inventory_export") && (
+        <div className="flex items-center gap-2 flex-wrap -mt-1">
+          <span className="text-[12px] text-t3 mr-1">{q || category || status ? "Export what's shown:" : "Export the list:"}</span>
+          <Button size="sm" variant="secondary" onClick={() => exportAs("pdf")}><FileDown className="w-3.5 h-3.5" /> PDF <LockChip feature="reports" /></Button>
+          <Button size="sm" variant="secondary" onClick={() => exportAs("xlsx")}><FileSpreadsheet className="w-3.5 h-3.5" /> Excel <LockChip feature="reports" /></Button>
+          <Button size="sm" variant="secondary" onClick={() => exportAs("print")}><Printer className="w-3.5 h-3.5" /> Print <LockChip feature="reports" /></Button>
+          <Button size="sm" variant="ghost" onClick={() => exportAs("csv")}><Download className="w-3.5 h-3.5" /> CSV</Button>
+        </div>
+      )}
+      <ErrorBanner message={exportError} />
 
       {loading && !data ? <div className="py-16"><Spinner /></div> : !data || data.items.length === 0 ? (
         <Card><EmptyState icon={Boxes} title={q || category || status ? "Nothing matches" : "No products yet"} body={q || category || status ? "Try a different search or filter." : "Add products in the catalog, or import your opening stock."} /></Card>
@@ -171,7 +190,7 @@ function StockTab({ canCost, currency, onChanged }: { canCost: boolean; currency
                     <td className="px-3 py-2.5 text-right font-mono tabular-nums text-t2">{money(p.price)}</td>
                     {canCost && <td className="px-3 py-2.5 text-right font-mono tabular-nums text-t3">{money(p.cost || 0)}</td>}
                     {canCost && <td className="px-3 py-2.5 text-right font-mono tabular-nums font-semibold text-t1">{money(p.stockValue || 0)}</td>}
-                    <td className="px-3 py-2.5 text-right"><Button size="sm" variant="ghost" onClick={() => setAdjusting(p)} aria-label={`Adjust ${p.name}`}><Sliders className="w-3.5 h-3.5" /> Adjust</Button></td>
+                    <td className="px-3 py-2.5 text-right">{can("stock_adjust") && <Button size="sm" variant="ghost" onClick={() => setAdjusting(p)} aria-label={`Adjust ${p.name}`}><Sliders className="w-3.5 h-3.5" /> Adjust</Button>}</td>
                   </tr>
                 ))}
               </tbody>

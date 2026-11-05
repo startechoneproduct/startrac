@@ -15,8 +15,8 @@ export function businessFace(b) {
     : store.accountNumber ? { bankName: store.bankName || "", accountName: store.accountName || "", accountNumber: store.accountNumber } : null;
   return {
     name: b.tradingName || b.name,
-    address: s.receipt?.address || site.contact?.address || "",
-    phone: s.receipt?.phone || site.contact?.phone || "",
+    address: s.receipt?.address || s.address || site.contact?.address || "",
+    phone: s.receipt?.phone || s.phone || site.contact?.phone || "",
     email: site.contact?.email || "",
     taxId: b.taxId || "",
     accent: site.accent || "",

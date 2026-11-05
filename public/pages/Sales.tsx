@@ -15,7 +15,7 @@ import { useApi } from "@/lib/useApi";
 import { useSession } from "@/lib/session";
 import { downloadCsv } from "@/lib/csv";
 import { ROWS_PER_PAGE } from "@/components/ui/Pager";
-import { fmtDateTime, fmtMoney, todayStr } from "@/lib/format";
+import { fmtDateTime, fmtMoney, todayStr, payLabel } from "@/lib/format";
 import { StatStrip } from "@/components/ui/Panel";
 import { cn } from "@/lib/utils";
 
@@ -99,7 +99,7 @@ export function SalesHistoryView() {
     discount: s.discount,
     vat: s.vat,
     total: s.total,
-    payment: s.payments.map((p) => `${p.method} ${p.amount}`).join(" + "),
+    payment: s.payments.map((p) => `${payLabel(p.method)} ${p.amount}`).join(" + "),
     status: s.status,
   });
 
@@ -213,7 +213,7 @@ export function SalesHistoryView() {
                     <TD className="!text-[12px] !text-t3">{s.customerName || "—"}</TD>
                     <TD>
                       <Badge tone={s.payments[0]?.method === "cash" ? "success" : s.payments[0]?.method === "pos" ? "brand" : "warning"}>
-                        {s.payments.map((p) => p.method).join("+")}
+                        {s.payments.map((p) => payLabel(p.method)).join("+")}
                       </Badge>
                     </TD>
                     <TD>
@@ -266,7 +266,7 @@ function SaleDetail({ sale, currency, canVoid, onClose, onVoid }: {
           {sale.discount > 0 && <div className="flex justify-between text-[12px] text-danger"><span>Discount</span><span className="font-mono">−{fmtMoney(sale.discount, currency)}</span></div>}
           {sale.vat > 0 && <div className="flex justify-between text-[12px] text-t2"><span>VAT</span><span className="font-mono">{fmtMoney(sale.vat, currency)}</span></div>}
           <div className="flex justify-between text-[15px] font-semibold text-t1 pt-1"><span>Total</span><span className="font-mono">{fmtMoney(sale.total, currency)}</span></div>
-          <div className="text-[11px] text-t3">Paid via {sale.payments.map((p) => `${p.method.toUpperCase()} ${fmtMoney(p.amount, currency)}`).join(" + ")}</div>
+          <div className="text-[11px] text-t3">Paid via {sale.payments.map((p) => `${payLabel(p.method)} ${fmtMoney(p.amount, currency)}`).join(" + ")}</div>
         </div>
       </div>
       <WhatsAppReceipt saleId={sale.id} className="mt-4" />

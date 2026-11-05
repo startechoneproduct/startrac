@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { config } from "#core/config.js";
+import { ALL_PERMS, expandPerms } from "#shared/permissions.js";
 
 export const hashPassword = (plain) => bcrypt.hash(plain, 10);
 export const checkPassword = (plain, hash) => bcrypt.compare(plain, hash);
@@ -17,9 +18,10 @@ export function verifyToken(token) {
   }
 }
 
-// Default capabilities per role (per-user overrides are added on top).
-// "costs" (see cost/profit on products) rides with dashboard_finance;
-// managers can be granted it individually via permsOverride.
+// Default capabilities per role. Each person can then be given more
+// (permsOverride) or have some taken away (permsRevoked) — see permsForRole.
+// Broad keys open up into finer ones (see shared/permissions.js), so e.g. a
+// manager's "stock" includes stock in, adjustments, counts and transfers.
 export const ROLE_PERMS = {
   owner: ["*"],
   admin: ["sales", "returns", "approve_returns", "void_sales", "stock", "prices", "expenses",
@@ -29,22 +31,37 @@ export const ROLE_PERMS = {
   staff: ["sales", "returns", "activity"],
 };
 
-// Every permission a person can be individually given. "*" (everything) is
-// deliberately not here: only the owner role has it, and it can never be handed out.
-export const GRANTABLE_PERMS = new Set([
-  "activity", "approve_returns", "audit", "customers", "dashboard_finance", "dashboard_ops", "expenses",
-  "prices", "returns", "sales", "settings", "staff_mgmt", "stock", "support", "void_sales",
-]);
+// Every permission a person can be individually given or have taken away. "*"
+// (everything) is deliberately not here: only the owner role has it, and it can
+// never be handed out or removed.
+export const GRANTABLE_PERMS = new Set(ALL_PERMS);
+
+/** What a role starts with, broad keys opened up. The owner is just ["*"]. */
+export function roleDefaults(role) {
+  const base = ROLE_PERMS[role] || ROLE_PERMS.staff;
+  return base.includes("*") ? ["*"] : expandPerms(base);
+}
 
 /** Why `wanted` can't be given to someone by `actorPerms`, or null if it can. */
 export function overridesProblem(actorPerms, wanted) {
+  if (wanted.length && !actorPerms.includes("*") && !actorPerms.includes("staff_perms")) return "You don't have permission to change staff permissions.";
   if (wanted.some((p) => !GRANTABLE_PERMS.has(p))) return "That isn't a permission that can be given.";
   if (!actorPerms.includes("*") && wanted.some((p) => !actorPerms.includes(p))) return "You can't give someone a permission you don't have yourself.";
   return null;
 }
 
-export function permsForRole(role, overrides = []) {
-  const base = ROLE_PERMS[role] || ROLE_PERMS.staff;
+/**
+ * What a person may actually do: their role's permissions, plus what was given
+ * to them, minus what was taken away. The owner always has everything.
+ */
+export function permsForRole(role, overrides = [], revoked = []) {
+  const base = roleDefaults(role);
+  if (base.includes("*")) return base;
   // Filtered on the way out as well, so an override stored before this rule existed can't carry "*".
-  return Array.from(new Set([...base, ...overrides.filter((p) => GRANTABLE_PERMS.has(p))]));
+  const given = expandPerms(overrides.filter((p) => GRANTABLE_PERMS.has(p)));
+  const removed = new Set(revoked);
+  return Array.from(new Set([...base, ...given])).filter((p) => !removed.has(p));
 }
+
+/** permsForRole for a stored membership. */
+export const permsForMembership = (m) => permsForRole(m?.role || "staff", m?.permsOverride || [], m?.permsRevoked || []);

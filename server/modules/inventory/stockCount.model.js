@@ -24,9 +24,13 @@ const stockCountSchema = new mongoose.Schema(
         systemQty: { type: Number, required: true },
         countedQty: { type: Number, default: null },
         variance: { type: Number, default: null }, // set on close: countedQty - systemQty
+        // Why this line is off (or anything worth knowing about it), kept with the count for later.
+        issue: { type: String, enum: ["", "damaged", "missing", "expired", "miscount", "found", "other"], default: "" },
+        comment: { type: String, default: "" },
       },
     ],
     note: { type: String, default: "" },
+    closeNote: { type: String, default: "" }, // what the person closing it wants on record
     startedById: { type: mongoose.Schema.Types.ObjectId },
     startedByName: { type: String, default: "" },
     closedById: { type: mongoose.Schema.Types.ObjectId },

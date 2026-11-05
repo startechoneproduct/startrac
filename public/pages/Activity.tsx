@@ -8,7 +8,7 @@ import { useApi } from "@/lib/useApi";
 import { VoidSaleModal } from "@/components/sales/VoidSaleModal";
 import { usePaged, Pager } from "@/components/ui/Pager";
 import { useSession } from "@/lib/session";
-import { fmtMoney, fmtTime, todayStr } from "@/lib/format";
+import { fmtMoney, fmtTime, todayStr, payLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type Sale = {
@@ -61,7 +61,7 @@ export function Activity() {
                 </div>
                 <div className="text-right shrink-0">
                   <div className="font-mono text-[13px] font-semibold text-t1 tabular-nums">{fmtMoney(s.total, currency)}</div>
-                  <div className="text-[11.5px] text-t4">{s.payments.map((p) => p.method).join(" + ")}</div>
+                  <div className="text-[11.5px] text-t4">{s.payments.map((p) => payLabel(p.method)).join(" + ")}</div>
                 </div>
                 {can("void_sales") && s.status === "completed" && (
                   <Button size="sm" variant="secondary" onClick={() => setVoiding(s)}><Ban className="w-3.5 h-3.5" /> Void</Button>

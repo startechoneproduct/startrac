@@ -1,4 +1,4 @@
-import { fmtDateTime, fmtMoney } from "@/lib/format";
+import { fmtDateTime, fmtMoney, payLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export type ReceiptDesign = {
@@ -23,6 +23,8 @@ export const DEFAULT_DESIGN: ReceiptDesign = {
 export type ReceiptData = {
   saleNo: string; businessName: string; at: string; staffName: string; customerName: string;
   customerPhone?: string;
+  /** The business logo, printed at the top (Business plan; the server leaves it empty otherwise). */
+  logoUrl?: string;
   /** Set on the till once the sale is saved, so the receipt can be sent on. */
   saleId?: string;
   items: { name: string; qty: number; unitPrice: number; lineNet: number }[];
@@ -88,7 +90,7 @@ export function ReceiptPaper({ receipt: r, design: d = r.design || DEFAULT_DESIG
 
   const paid = d.showPayments && (
     <div className="space-y-0.5 opacity-80 text-[0.92em]">
-      {r.payments.map((p, i) => <Row key={i} left={p.method.toUpperCase()} right={m(p.amount)} />)}
+      {r.payments.map((p, i) => <Row key={i} left={payLabel(p.method).toUpperCase()} right={m(p.amount)} />)}
       {!!r.change && r.change > 0 && (<><Row left="Cash in" right={m(r.tendered || 0)} /><Row left="Change" right={m(r.change)} strong /></>)}
     </div>
   );
@@ -100,6 +102,13 @@ export function ReceiptPaper({ receipt: r, design: d = r.design || DEFAULT_DESIG
       className="bg-white text-black mx-auto shadow-e1 print:shadow-none"
       style={{ width: d.paperWidth === "58" ? "58mm" : "80mm", maxWidth: "100%", fontSize: base, lineHeight: 1.45, fontFamily: t === "compact" ? "ui-monospace, SFMono-Regular, Menlo, monospace" : "inherit", ...ink }}
     >
+      {/* Logo, above whichever header style is chosen */}
+      {r.logoUrl && (
+        <div className={cn("px-4 pt-4 flex", t === "modern" ? "justify-start" : "justify-center")}>
+          <img src={r.logoUrl} alt="" className="max-h-14 max-w-[60%] object-contain" />
+        </div>
+      )}
+
       {/* Header */}
       {t === "bold" ? (
         <div className="px-4 py-4 text-center" style={{ background: "#000", color: "#fff", ...ink }}>

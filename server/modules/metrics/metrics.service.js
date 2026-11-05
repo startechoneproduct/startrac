@@ -438,6 +438,10 @@ export async function rebuildDailyMetrics({ accountId, businessId, from, to }) {
     b.profit -= r.refund.amount - costBack;
     b.refundTotal += r.refund.amount;
     if (METHODS.includes(r.refund.method)) b.paymentSplit[r.refund.method] -= r.refund.amount;
+    // Damaged returns: their cost is written off as waste (see returns.routes.js approve).
+    const damaged = r.items.filter((i) => i.condition === "damaged").reduce((sum, i) => sum + (i.unitCost || 0) * i.qty, 0);
+    b.wasteTotal += damaged;
+    b.profit -= damaged;
   }
 
   // 3. Waste — never sold, so no revenue/cost to reverse, just a straight
@@ -495,5 +499,123 @@ export async function rebuildDailyMetrics({ accountId, businessId, from, to }) {
     returns: returns.length,
     waste: waste.length,
     expenses: expenses.length,
+  };
+}
+
+/** The date range a Profit & Loss period covers, and the one just before it, as YYYY-MM-DD. */
+export function financeRange(period, from, to) {
+  const today = localDay();
+  const span = (a, b) => Math.round((new Date(`${b}T00:00:00`) - new Date(`${a}T00:00:00`)) / 86_400_000) + 1;
+  let start, end = today, prevStart, prevEnd;
+  if (period === "custom" && /^\d{4}-\d{2}-\d{2}$/.test(from || "") && /^\d{4}-\d{2}-\d{2}$/.test(to || "") && from <= to && span(from, to) <= 366) {
+    start = from; end = to;
+  } else if (period === "today") {
+    start = today;
+  } else if (period === "month") {
+    start = `${today.slice(0, 8)}01`;
+  } else if (period === "year") {
+    start = `${today.slice(0, 4)}-01-01`;
+  } else {
+    period = "week";
+    start = dayOffset(today, -6);
+  }
+  if (period === "month") {
+    // Compare with the same days of last month, not the whole of it.
+    const d = new Date(`${start}T00:00:00`); d.setMonth(d.getMonth() - 1);
+    prevStart = localDay(d);
+    prevEnd = dayOffset(prevStart, span(start, end) - 1);
+  } else if (period === "year") {
+    prevStart = `${Number(today.slice(0, 4)) - 1}-01-01`;
+    prevEnd = `${Number(today.slice(0, 4)) - 1}${end.slice(4)}`;
+  } else {
+    prevEnd = dayOffset(start, -1);
+    prevStart = dayOffset(prevEnd, -(span(start, end) - 1));
+  }
+  return { period, from: start, to: end, prevFrom: prevStart, prevTo: prevEnd };
+}
+
+/**
+ * Profit & Loss for a period, from the same pre-rolled daily numbers the rest
+ * of the dashboard reads, so every figure here agrees with the sales list:
+ *
+ *   sales (after refunds) − VAT − cost of goods sold = gross profit
+ *   gross profit − waste − expenses                  = net profit
+ *
+ * Cost of goods sold uses the cost recorded on each sale line when it was
+ * sold (refunded lines put theirs back), not today's product cost. Stock
+ * bought in is what was spent on deliveries in the period, which is not a
+ * cost until those goods are sold; stock value is what is on the shelf now.
+ */
+export async function buildFinanceReport(ctx, { period, from, to } = {}) {
+  const range = financeRange(period, from, to);
+  const scope = { businessId: ctx.businessId, ...(ctx.branchId ? { branchId: ctx.branchId } : {}) };
+
+  const rows = await DailyMetric.find({ ...scope, date: { $gte: range.prevFrom < range.from ? range.prevFrom : range.from, $lte: range.to } }).lean();
+  const totalsFor = (a, b) => {
+    const t = { revenue: 0, vat: 0, cost: 0, profit: 0, waste: 0, expenses: 0, refunds: 0, txns: 0 };
+    for (const r of rows) {
+      if (r.date < a || r.date > b) continue;
+      t.revenue += r.revenue; t.vat += r.vatTotal || 0; t.cost += r.cost; t.profit += r.profit;
+      t.waste += r.wasteTotal || 0; t.expenses += r.expenses; t.refunds += r.refundTotal || 0; t.txns += r.txns;
+    }
+    const grossProfit = t.profit + t.waste; // daily profit already has waste taken out
+    const netProfit = t.profit - t.expenses;
+    return {
+      revenue: money(t.revenue), vat: money(t.vat), netSales: money(t.revenue - t.vat), cogs: money(t.cost),
+      grossProfit: money(grossProfit), waste: money(t.waste), expenses: money(t.expenses), netProfit: money(netProfit),
+      refunds: money(t.refunds), txns: t.txns,
+      grossMargin: t.revenue - t.vat > 0 ? Math.round((grossProfit / (t.revenue - t.vat)) * 1000) / 10 : 0,
+      netMargin: t.revenue - t.vat > 0 ? Math.round((netProfit / (t.revenue - t.vat)) * 1000) / 10 : 0,
+    };
+  };
+  const current = totalsFor(range.from, range.to);
+  const previous = totalsFor(range.prevFrom, range.prevTo);
+
+  // The trend: by day for anything up to two months, by month beyond that.
+  const byMonth = range.period === "year" || (new Date(`${range.to}T00:00:00`) - new Date(`${range.from}T00:00:00`)) / 86_400_000 > 62;
+  const buckets = new Map();
+  const keyOf = (date) => (byMonth ? date.slice(0, 7) : date);
+  for (let d = range.from; d <= range.to; d = dayOffset(d, 1)) {
+    const k = keyOf(d);
+    if (!buckets.has(k)) buckets.set(k, { key: k, revenue: 0, cogs: 0, expenses: 0, netProfit: 0 });
+  }
+  for (const r of rows) {
+    if (r.date < range.from || r.date > range.to) continue;
+    const b = buckets.get(keyOf(r.date));
+    b.revenue += r.revenue; b.cogs += r.cost; b.expenses += r.expenses; b.netProfit += r.profit - r.expenses;
+  }
+  const trend = [...buckets.values()].map((b) => ({
+    key: b.key, revenue: money(b.revenue), cogs: money(b.cogs), expenses: money(b.expenses), netProfit: money(b.netProfit),
+  }));
+
+  // Expenses by what they were for.
+  const start = new Date(`${range.from}T00:00:00`);
+  const end = new Date(`${dayOffset(range.to, 1)}T00:00:00`);
+  const expenseRows = await Expense.aggregate([
+    { $match: { ...scope, at: { $gte: start, $lt: end } } },
+    { $group: { _id: "$type", amount: { $sum: "$amount" }, count: { $sum: 1 } } },
+    { $sort: { amount: -1 } },
+  ]);
+
+  // Stock bought in during the period: each delivery at the cost it was
+  // received at, or the product's cost where none was entered.
+  const ins = await StockMovement.find({ ...scope, type: "IN", refType: { $ne: "production" }, at: { $gte: start, $lt: end } })
+    .select("productId qty unitCost").lean();
+  const needCost = [...new Set(ins.filter((m) => m.unitCost === undefined || m.unitCost === null).map((m) => String(m.productId)))];
+  const costOf = new Map(
+    (needCost.length ? await Product.find({ _id: { $in: needCost } }).select("cost").lean() : []).map((p) => [String(p._id), p.cost || 0])
+  );
+  const purchases = ins.reduce((s, m) => s + m.qty * (m.unitCost ?? costOf.get(String(m.productId)) ?? 0), 0);
+
+  const inventory = await buildInventoryReport(ctx);
+
+  return {
+    ...range,
+    current,
+    previous,
+    trendBy: byMonth ? "month" : "day",
+    trend,
+    expensesByType: expenseRows.map((e) => ({ type: e._id || "Other", amount: money(e.amount), count: e.count })),
+    stock: { purchases: money(purchases), deliveries: ins.length, valueAtCost: inventory.costValue ?? 0, valueAtPrice: inventory.retailValue ?? 0 },
   };
 }
