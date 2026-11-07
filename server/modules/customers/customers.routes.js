@@ -26,6 +26,7 @@ function shape(c) {
     firstSeen: c.firstSeen,
     lastSeen: c.lastSeen,
     creditBalance: c.creditBalance || 0,
+    storeCredit: c.storeCredit || 0,
     source: c.source || "pos",
     email: c.email || "",
     address: c.address || "",

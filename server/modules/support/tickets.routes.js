@@ -11,6 +11,7 @@ import { esc } from "#core/mailer.js";
 import { nextSeq } from "#core/counters.js";
 import { notFound, badRequest } from "#core/httpError.js";
 import { escapeRegex } from "#core/regex.js";
+import { acceptFiles, saveFiles, fileVisible, sendTicketFile, sendToStarTrack, notifyDesk, publicComments } from "#modules/support/support.shared.js";
 
 export const ticketsRouter = Router();
 
@@ -29,8 +30,12 @@ function shape(t) {
     raisedBy: t.raisedBy,
     assignedToId: t.assignedToId,
     assignedToName: t.assignedToName,
-    comments: t.comments,
+    comments: publicComments(t),
+    attachments: t.attachments || [],
     scope: t.scope,
+    ref: t.ref || "",
+    awaiting: t.awaiting || null,
+    supportAgent: t.deskAssigneeName || "",
     escalatedAt: t.escalatedAt,
     resolvedAt: t.resolvedAt,
     closedAt: t.closedAt,
@@ -87,6 +92,8 @@ const createSchema = z.object({
   customerId: z.string().optional(),
   customerName: z.string().default(""),
   customerPhone: z.string().default(""),
+  // Straight to StarTrack's support desk instead of this business's own queue.
+  toStarTrack: z.boolean().default(false),
 });
 
 // POST /api/tickets
@@ -119,19 +126,28 @@ ticketsRouter.post("/", requirePerm("sales"), async (req, res) => {
     customerPhone,
     raisedBy: { userId: req.ctx.userId, name: req.ctx.actorName },
   });
+  if (d.toStarTrack) {
+    await sendToStarTrack(ticket);
+    await ticket.save();
+  }
 
-  audit(req.ctx, "ticket.create", { type: "ticket", id: ticket._id, label: ticket.ticketNo });
+  audit(req.ctx, d.toStarTrack ? "ticket.help" : "ticket.create", { type: "ticket", id: ticket._id, label: ticket.ref || ticket.ticketNo });
   res.status(201).json({ ticket: shape(ticket) });
 });
 
-// GET /api/tickets?status=&priority=&q=
+// GET /api/tickets?status=&priority=&q=&scope=business|platform
 ticketsRouter.get("/", async (req, res) => {
-  const filter = visibilityFilter(req.ctx);
-  if (req.query.status) filter.status = String(req.query.status);
+  const base = visibilityFilter(req.ctx);
+  if (["business", "platform"].includes(req.query.scope)) base.scope = req.query.scope;
+  const filter = { ...base };
+  // "active" and "done" group the statuses the way the Help page shows them.
+  if (req.query.status === "active") filter.status = { $in: ["open", "in_progress"] };
+  else if (req.query.status === "done") filter.status = { $in: ["resolved", "closed"] };
+  else if (req.query.status) filter.status = String(req.query.status);
   if (req.query.priority) filter.priority = String(req.query.priority);
   if (req.query.q) {
     const rx = { $regex: escapeRegex(req.query.q), $options: "i" };
-    filter.$and = [...(filter.$and || []), { $or: [{ subject: rx }, { ticketNo: rx }, { customerName: rx }] }];
+    filter.$and = [...(filter.$and || []), { $or: [{ subject: rx }, { ticketNo: rx }, { ref: rx }, { customerName: rx }] }];
   }
 
   const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 100);
@@ -139,7 +155,7 @@ ticketsRouter.get("/", async (req, res) => {
   const [tickets, total, statusCounts] = await Promise.all([
     Ticket.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
     Ticket.countDocuments(filter),
-    Ticket.aggregate([{ $match: visibilityFilter(req.ctx) }, { $group: { _id: "$status", n: { $sum: 1 } } }]),
+    Ticket.aggregate([{ $match: base }, { $group: { _id: "$status", n: { $sum: 1 } } }]),
   ]);
 
   res.json({
@@ -202,28 +218,55 @@ ticketsRouter.patch("/:id", requirePerm("support"), async (req, res) => {
   res.json({ ticket: shape(ticket) });
 });
 
-const commentSchema = z.object({ body: z.string().min(1, "Write something first") });
+const commentSchema = z.object({ body: z.string().trim().max(5000).default("") });
 
-// POST /api/tickets/:id/comments
-ticketsRouter.post("/:id/comments", async (req, res) => {
-  const parsed = commentSchema.safeParse(req.body);
+// POST /api/tickets/:id/comments — JSON { body }, or multipart with "body" and up to five "files"
+ticketsRouter.post("/:id/comments", acceptFiles, async (req, res) => {
+  const parsed = commentSchema.safeParse(req.body || {});
   if (!parsed.success) return res.status(400).json({ error: "invalid", message: parsed.error.issues[0].message });
+  const files = req.files || [];
+  if (!parsed.data.body && !files.length) return res.status(400).json({ error: "invalid", message: "Write something first" });
 
   const ticket = await Ticket.findOne({ _id: req.params.id, ...visibilityFilter(req.ctx) });
   if (!ticket) return res.status(404).json({ error: "not_found", message: "Ticket not found." });
 
-  ticket.comments.push({ byId: req.ctx.userId, byName: req.ctx.actorName, body: parsed.data.body });
+  const attachments = await saveFiles(ticket, files);
+  ticket.comments.push({ byId: req.ctx.userId, byName: req.ctx.actorName, body: parsed.data.body, side: "business", attachments });
+  if (ticket.scope === "platform") {
+    // The business has written back: it's StarTrack's turn, and a closed request opens again.
+    ticket.awaiting = "startrack";
+    ticket.lastMessageAt = new Date();
+    if (ticket.status === "resolved" || ticket.status === "closed") { ticket.status = "open"; ticket.resolvedAt = null; ticket.closedAt = null; }
+  }
   await ticket.save();
+  if (ticket.scope === "platform") notifyDesk(ticket, parsed.data.body);
 
   const notifyIds = [ticket.raisedBy.userId];
   if (ticket.assignedToId) notifyIds.push(ticket.assignedToId);
   await notify(req.ctx, ticket, {
     toUserIds: notifyIds,
     title: `New reply on ${ticket.ticketNo}`,
-    body: parsed.data.body.slice(0, 140),
+    body: parsed.data.body.slice(0, 140) || "Added files",
   });
 
   res.status(201).json({ ticket: shape(ticket) });
+});
+
+// POST /api/tickets/:id/attachments — multipart "files": screenshots or documents for the ticket itself
+ticketsRouter.post("/:id/attachments", acceptFiles, async (req, res) => {
+  const ticket = await Ticket.findOne({ _id: req.params.id, ...visibilityFilter(req.ctx) });
+  if (!ticket) return res.status(404).json({ error: "not_found", message: "Ticket not found." });
+  if (!(req.files || []).length) return res.status(400).json({ error: "invalid", message: "Attach screenshots or photos (JPG, PNG, WEBP) or PDFs only." });
+  ticket.attachments.push(...(await saveFiles(ticket, req.files)));
+  await ticket.save();
+  res.status(201).json({ ticket: shape(ticket) });
+});
+
+// GET /api/tickets/:id/files/:fileId — one attachment, for anyone who can see the ticket
+ticketsRouter.get("/:id/files/:fileId", async (req, res) => {
+  const ticket = await Ticket.findOne({ _id: req.params.id, ...visibilityFilter(req.ctx) });
+  if (!ticket || !fileVisible(ticket, req.params.fileId, { desk: false })) return res.status(404).json({ error: "not_found", message: "File not found." });
+  return sendTicketFile(res, ticket, req.params.fileId);
 });
 
 // POST /api/tickets/:id/escalate — owner/admin only, hands it to StarTrack.
@@ -232,9 +275,8 @@ ticketsRouter.post("/:id/escalate", requirePerm("settings"), async (req, res) =>
   if (!ticket) throw notFound("Ticket not found.");
   if (ticket.scope === "platform") throw badRequest("This ticket is already with StarTrack support.", "already_escalated");
 
-  ticket.scope = "platform";
-  ticket.escalatedAt = new Date();
+  await sendToStarTrack(ticket);
   await ticket.save();
-  audit(req.ctx, "ticket.escalate", { type: "ticket", id: ticket._id, label: ticket.ticketNo });
+  audit(req.ctx, "ticket.escalate", { type: "ticket", id: ticket._id, label: ticket.ref });
   res.json({ ticket: shape(ticket) });
 });

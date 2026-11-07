@@ -3,6 +3,7 @@ import { Spinner } from "@/components/ui/EmptyState";
 import { useApi } from "@/lib/useApi";
 import { fmtDate } from "@/lib/format";
 import { EmptyBlock, KpiCard, PageHeader, Panel, Pill, RowButton, Avatar, compactMoney, naira } from "./ui";
+import { ExportButton } from "./ExportButton";
 
 type AccountRow = {
   id: string; name: string; plan: string; trial: boolean; periodEnd: string | null; daysLeft?: number;
@@ -31,7 +32,7 @@ export function SubscriptionsTab({ onOpenAccount }: { onOpenAccount: (id: string
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto animate-fade-up">
-      <PageHeader title="Subscriptions" subtitle="Who is paying, who is trialling, and who is about to lapse." />
+      <PageHeader title="Subscriptions" subtitle="Who is paying, who is trialling, and who is about to lapse." actions={<ExportButton kind="payments" label="Export payments" />} />
 
       {data.paymentsOn === false && (
         <div className="mb-4 rounded-2xl border border-warning/30 bg-warning-soft px-5 py-3.5 text-[13px] text-t1">

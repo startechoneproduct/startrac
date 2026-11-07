@@ -312,98 +312,98 @@ input:-webkit-autofill:focus {
 
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Platform console palette — "spruce & sand".
-   Scoped to the admin shell only: it re-points the same tokens the whole UI
-   already reads, so every shared component picks it up without a code change,
-   and the business app keeps the StarTrack indigo.
+   Platform console palette: StarTechOne blue #2557AD and orange #EC782E.
+   Scoped to the console and support desk only. It re-points the same tokens
+   the whole UI reads, so shared components follow without code changes and
+   the business app keeps the StarTrack indigo.
    ────────────────────────────────────────────────────────────────────────── */
 .admin-theme {
-  --st-bg:        #f2eee3;
-  --st-surface:   #fffdf8;
-  --st-surface-2: #f8f4ea;
-  --st-surface-3: #eee8d9;
-  --st-border:    #e4ddca;
-  --st-border-2:  #cbc2aa;
-  --st-text-1:    #12231f;
-  --st-text-2:    #3a4a44;
-  --st-text-3:    #66756e;
-  --st-text-4:    #98a39d;
+  --st-brand-50:  #f2f6fc;
+  --st-brand-100: #dfe8f7;
+  --st-brand-200: #bccfee;
+  --st-brand-300: #8eaee0;
+  --st-brand-400: #5a87cc;
+  --st-brand-500: #2557ad;
+  --st-brand-600: #1f4b96;
+  --st-brand-700: #1a3f7e;
+  --st-royal:  #2557ad;
+  --st-violet: #ec782e;
+  --st-amber:  #ec782e;
+  --st-accent: #ec782e;
+  --st-accent-soft: #fdeee3;
 
-  --st-primary:        #0d7a5f;
-  --st-primary-hover:  #095f4a;
-  --st-primary-soft:   #dcf1e8;
-  --st-primary-softer: #eef8f3;
-  --st-on-primary:     #ffffff;
-  --st-violet:         #d9922b;
-  --st-amber:          #f0b13f;
+  --st-gradient-primary:       linear-gradient(135deg, #2557ad 0%, #2f66c4 100%);
+  --st-gradient-primary-hover: linear-gradient(135deg, #1f4b96 0%, #2557ad 100%);
+  --st-gradient-ink:           linear-gradient(180deg, #123267 0%, #0e2856 50%, #0a1d40 100%);
+  --admin-hero:                linear-gradient(120deg, #1d4690 0%, #2557ad 60%, #2f66c4 100%);
 
-  --st-success:      #2a9d57;
-  --st-success-soft: #e0f3e5;
-  --st-warning:      #b66f12;
-  --st-warning-soft: #fbedd0;
-  --st-danger:       #c4423a;
-  --st-danger-soft:  #fbe3df;
+  --st-bg:        #f4f7fc;
+  --st-surface-2: #f6f9fd;
+  --st-surface-3: #edf2f9;
+  --st-border:    #e2e9f4;
+  --st-border-2:  #c8d4e8;
+  --st-text-1:    #0d1b33;
+  --st-text-2:    #3c4a63;
+  --st-text-3:    #66748e;
+  --st-text-4:    #97a3b9;
 
-  --st-nav-bg:        #0b2622;
-  --st-nav-bg-2:      rgba(255, 255, 255, 0.06);
-  --st-nav-fg:        #9db9b0;
-  --st-nav-fg-strong: #ffffff;
-  --st-nav-active:    rgba(255, 255, 255, 0.10);
-  --st-nav-hover:     rgba(255, 255, 255, 0.06);
-  --st-nav-border:    rgba(160, 230, 205, 0.16);
-  --st-ink:           #0b2622;
+  --st-primary:        #2557ad;
+  --st-primary-hover:  #1d4690;
+  --st-primary-soft:   #e6eefa;
+  --st-primary-softer: #f3f7fd;
 
-  --st-gradient-primary: linear-gradient(135deg, #0d7a5f 0%, #1f9c78 100%);
-  --st-shadow-1:  0 1px 2px rgba(40, 32, 8, 0.05), 0 10px 28px -14px rgba(40, 32, 8, 0.16);
-  --st-shadow-lg: 0 2px 6px rgba(40, 32, 8, 0.06), 0 24px 44px -20px rgba(40, 32, 8, 0.26);
-  --st-shadow-2:  0 30px 60px -22px rgba(11, 38, 34, 0.38), 0 8px 16px -8px rgba(11, 38, 34, 0.16);
-  --st-focus-ring: 0 0 0 4px rgba(13, 122, 95, 0.16);
+  --st-nav-bg:     #0e2856;
+  --st-nav-fg:     #a9bddf;
+  --st-nav-border: rgba(170, 200, 255, 0.16);
+  --st-ink:        #0a1d40;
+
+  --st-shadow-1:  0 1px 2px rgba(13, 35, 80, 0.04), 0 10px 30px -12px rgba(20, 55, 120, 0.12);
+  --st-shadow-lg: 0 2px 6px rgba(13, 35, 80, 0.05), 0 24px 48px -18px rgba(20, 55, 120, 0.22);
+  --st-shadow-brand: 0 8px 20px -6px rgba(37, 87, 173, 0.45);
+  --st-focus-ring: 0 0 0 4px rgba(37, 87, 173, 0.15);
+  --chart-1: #2557ad;
+  --chart-3: #ec782e;
+  --chart-grid: rgba(13, 35, 80, 0.07);
   background: var(--st-bg);
   color: var(--st-text-1);
 }
 .dark .admin-theme {
-  --st-bg:        #07150f;
-  --st-surface:   #0e1f19;
-  --st-surface-2: #132821;
-  --st-surface-3: #1a3329;
-  --st-border:    rgba(150, 230, 200, 0.13);
-  --st-border-2:  rgba(150, 230, 200, 0.26);
-  --st-text-1:    #ecf6f1;
-  --st-text-2:    #bfd3ca;
-  --st-text-3:    #8fa89d;
-  --st-text-4:    #62796f;
+  --st-brand-100: rgba(111, 155, 230, 0.22);
+  --st-accent: #f39a5c;
+  --st-accent-soft: rgba(236, 120, 46, 0.18);
+  --st-amber: #f39a5c;
+  --st-violet: #f39a5c;
+  --st-gradient-ink: linear-gradient(180deg, #0c2148 0%, #091a3a 50%, #06122b 100%);
+  --admin-hero:      linear-gradient(120deg, #173a78 0%, #2557ad 70%, #2f66c4 100%);
 
-  --st-primary:        #46d9a0;
-  --st-primary-hover:  #7be8bd;
-  --st-primary-soft:   rgba(70, 217, 160, 0.15);
-  --st-primary-softer: rgba(70, 217, 160, 0.08);
-  --st-on-primary:     #04251a;
-  --st-violet:         #f0b13f;
+  --st-bg:        #060f22;
+  --st-surface:   #0c1a35;
+  --st-surface-2: #102142;
+  --st-surface-3: #162a50;
+  --st-border:    rgba(150, 185, 245, 0.14);
+  --st-border-2:  rgba(150, 185, 245, 0.26);
+  --st-text-1:    #eef3fc;
+  --st-text-2:    #c0cde6;
+  --st-text-3:    #91a3c6;
+  --st-text-4:    #617398;
 
-  --st-success:      #5fd48a;
-  --st-success-soft: rgba(95, 212, 138, 0.16);
-  --st-warning:      #f0b663;
-  --st-warning-soft: rgba(240, 182, 99, 0.16);
-  --st-danger:       #ff8f86;
-  --st-danger-soft:  rgba(255, 143, 134, 0.16);
-
-  --st-nav-bg: #051a15;
-  --st-ink:    #051a15;
-  --st-gradient-primary: linear-gradient(135deg, #1f9c78 0%, #46d9a0 100%);
+  --st-primary:        #6f9be6;
+  --st-primary-hover:  #9bbbf0;
+  --st-primary-soft:   rgba(111, 155, 230, 0.16);
+  --st-primary-softer: rgba(111, 155, 230, 0.09);
+  --st-nav-bg: #091a3a;
+  --st-ink:    #06122b;
+  --st-focus-ring: 0 0 0 4px rgba(111, 155, 230, 0.22);
+  --chart-1: #6f9be6;
+  --chart-3: #f39a5c;
+  --chart-grid: rgba(150, 185, 245, 0.1);
 }
 .admin-theme .content-bg {
   background:
-    radial-gradient(52rem 26rem at 100% -10%, rgba(240, 177, 63, 0.10), transparent 60%),
-    radial-gradient(44rem 24rem at 0% -12%, rgba(13, 122, 95, 0.08), transparent 60%),
+    radial-gradient(56rem 24rem at 100% -8%, rgba(236, 120, 46, 0.07), transparent 60%),
+    radial-gradient(40rem 22rem at 20% -10%, rgba(37, 87, 173, 0.07), transparent 60%),
     var(--st-bg);
 }
-/* Serif display face for headings and big numbers gives the console its own voice. */
-.admin-theme .font-display {
-  font-family: "Fraunces", "Iowan Old Style", Georgia, serif;
-  font-optical-sizing: auto;
-  letter-spacing: -0.01em;
-}
-
 
 /* ── Organization chart: a top-down tree drawn with plain nested lists ─────────
    Each <li> draws the half-lines above itself that join it to its siblings. */

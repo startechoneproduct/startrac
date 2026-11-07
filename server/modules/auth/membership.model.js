@@ -9,7 +9,8 @@ const membershipSchema = new mongoose.Schema(
     businessId: { type: mongoose.Schema.Types.ObjectId, ref: "Business", index: true }, // null = account-wide (owner)
     branchId: { type: mongoose.Schema.Types.ObjectId, ref: "Branch" }, // null = all branches
     role: { type: String, enum: ["owner", "admin", "manager", "staff"], default: "staff" },
-    permsOverride: { type: [String], default: [] },
+    permsOverride: { type: [String], default: [] }, // given on top of the role
+    permsRevoked: { type: [String], default: [] }, // taken away from what the role gives
     pinHash: { type: String, default: "" }, // set when staff can log in at a till
     shiftId: { type: mongoose.Schema.Types.ObjectId, ref: "Shift", default: null },
     // Organizational, not security — a job title and who this person reports

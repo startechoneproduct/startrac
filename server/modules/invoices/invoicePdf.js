@@ -13,7 +13,7 @@ import { fontFile } from "#modules/reports/renderPdf.js";
 const C = { ink: "#14172e", muted: "#667085", subtle: "#98a2b3", rule: "#e4e7ec", zebra: "#f8f9fc", good: "#0f9f6e", bad: "#d02b3c", warn: "#c96a05", white: "#ffffff" };
 const MARGIN = 44;
 
-const money = (n, cur) => `${cur}${Number(n || 0).toLocaleString("en-NG", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
+const money = (n, cur) => `${cur}${/[A-Za-z]$/.test(cur) ? " " : ""}${Number(n || 0).toLocaleString("en-NG", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
 const dateText = (d) => (d ? new Date(d).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" }) : "—");
 
 export function renderInvoicePdf(inv, biz, currency = "₦") {

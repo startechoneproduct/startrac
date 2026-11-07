@@ -6,6 +6,7 @@ import { Pager } from "@/components/ui/Pager";
 import { useApi } from "@/lib/useApi";
 import { fmtDate } from "@/lib/format";
 import { Avatar, EmptyBlock, PageHeader, Panel, Pill, SearchBox, naira } from "./ui";
+import { ExportButton } from "./ExportButton";
 
 type Row = {
   id: string; accountId: string; name: string; typeKey: string; typeLabel: string;
@@ -52,6 +53,7 @@ export function BusinessesTab({ types, onOpenAccount }: {
               {types.map((t) => <option key={t.typeKey} value={t.typeKey}>{t.label}</option>)}
             </Select>
             <SearchBox value={q} onChange={(v) => { setQ(v); setPage(1); }} placeholder="Search businesses…" className="w-64" />
+            <ExportButton kind="businesses" />
           </>
         }
       />

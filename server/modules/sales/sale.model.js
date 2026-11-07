@@ -70,7 +70,7 @@ const saleSchema = new mongoose.Schema(
         // only a business-vertical sale endpoint that checks hasCapability()
         // itself constructs one. See customerLedger.model.js for the ledger
         // it posts to, and sales.routes.js's void handler for the reversal.
-        method: { type: String, enum: ["cash", "pos", "transfer", "credit"], required: true },
+        method: { type: String, enum: ["cash", "pos", "transfer", "credit", "store_credit"], required: true },
         amount: { type: Number, required: true },
       },
     ],

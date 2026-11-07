@@ -9,11 +9,14 @@ import { Badge, Card } from "@/components/ui/Card";
 import { Table, TR, TH, TD } from "@/components/ui/Table";
 import { PageHeader, Spinner } from "@/components/ui/EmptyState";
 import { ErrorBanner, Field, Input } from "@/components/ui/Field";
+import { CurrencySelect } from "@/components/ui/CurrencySelect";
+import { LogoPicker } from "@/components/business/LogoPicker";
 import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { useSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
+import { findCurrency } from "#shared/currencies.js";
 
 type AlertPrefs = {
   lowStock: boolean; outOfStock: boolean; expiry: boolean; pendingReturns: boolean;
@@ -28,9 +31,9 @@ type LoyaltyRule = {
 };
 type SettingsData = {
   business: {
-    id: string; name: string; typeKey: string; typeLabel: string; code: string;
+    id: string; name: string; typeKey: string; typeLabel: string; code: string; logoUrl: string;
     settings: {
-      currency: string; vatEnabled: boolean; vatRate: number; receiptFooter: string;
+      currency: string; currencyCode: string; address: string; phone: string; vatEnabled: boolean; vatRate: number; receiptFooter: string;
       alertEmails: string[]; alerts: AlertPrefs; modules: string[]; loyaltyRule: LoyaltyRule;
       ai: { digestEnabled: boolean };
     };
@@ -157,16 +160,42 @@ function SaveBar({ dirty, busy, saved, onSave, label = "Save changes" }: {
 function BusinessSection({ data, onSaved }: { data: SettingsData; onSaved: () => void }) {
   const initial = {
     name: data.business.name,
-    currency: data.business.settings.currency,
+    // The code, or a symbol typed by hand before the list existed.
+    currency: findCurrency(data.business.settings.currency) ? data.business.settings.currencyCode : data.business.settings.currency,
     vatEnabled: data.business.settings.vatEnabled,
     vatRate: String(data.business.settings.vatRate),
     receiptFooter: data.business.settings.receiptFooter,
+    address: data.business.settings.address || "",
+    phone: data.business.settings.phone || "",
   };
   const [form, setForm] = useState(initial);
+  const [logoUrl, setLogoUrl] = useState(data.business.logoUrl);
+  const [logoBusy, setLogoBusy] = useState(false);
+  // The logo saves on its own, straight away; the rest waits for Save changes.
+  async function uploadLogo(image: Blob) {
+    setLogoBusy(true); setError("");
+    try {
+      const fd = new FormData();
+      fd.append("file", image, "logo");
+      const r = await api<{ logoUrl: string }>("/settings/logo", { method: "POST", body: fd });
+      setLogoUrl(r.logoUrl);
+      refreshSession().catch(() => {});
+    } catch (err: any) { setError(err.message); } finally { setLogoBusy(false); }
+  }
+  async function removeLogo() {
+    if (!confirm("Remove your logo?")) return;
+    setLogoBusy(true); setError("");
+    try {
+      await api("/settings/logo", { method: "DELETE" });
+      setLogoUrl("");
+      refreshSession().catch(() => {});
+    } catch (err: any) { setError(err.message); } finally { setLogoBusy(false); }
+  }
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const { refreshSession } = useSession();
   const dirty = JSON.stringify(form) !== JSON.stringify(initial);
 
   async function save() {
@@ -175,6 +204,8 @@ function BusinessSection({ data, onSaved }: { data: SettingsData; onSaved: () =>
       await api("/settings", { method: "PATCH", body: JSON.stringify({ ...form, vatRate: Number(form.vatRate) || 0 }) });
       setSaved(true);
       onSaved();
+      // Name and currency show all over the app; pick them up without signing in again.
+      if (form.currency !== initial.currency || form.name !== initial.name) refreshSession().catch(() => {});
       setTimeout(() => setSaved(false), 2500);
     } catch (err: any) {
       setError(err.message);
@@ -187,9 +218,14 @@ function BusinessSection({ data, onSaved }: { data: SettingsData; onSaved: () =>
     <div className="space-y-4">
       <Card className="p-5 space-y-3">
         <ErrorBanner message={error} />
+        <div><div className="text-[12.5px] font-semibold text-t2 mb-1.5">Logo</div><LogoPicker url={logoUrl} onPick={uploadLogo} onRemove={removeLogo} busy={logoBusy} /></div>
         <Field label="Business name"><Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-        <Field label="Currency symbol" hint="Shown on every price, receipt and report">
-          <Input required maxLength={4} className="!w-24" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Field label="Address" hint="Printed under your name on receipts and invoices"><Input value={form.address} maxLength={160} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="e.g. 12 Allen Avenue, Ikeja, Lagos" /></Field>
+          <Field label="Phone" hint="Printed on receipts and invoices"><Input value={form.phone} maxLength={40} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="e.g. 0803 123 4567" /></Field>
+        </div>
+        <Field label="Currency" hint={form.currency !== initial.currency ? "This changes the symbol shown from now on. Amounts already recorded are not converted." : "Shown on every price, receipt, invoice and report"}>
+          <CurrencySelect className="sm:!w-80" value={form.currency} legacySymbol={data.business.settings.currency} onChange={(code) => setForm({ ...form, currency: code })} />
         </Field>
         <Field label="Receipt footer" hint="The last line customers read">
           <Input value={form.receiptFooter} onChange={(e) => setForm({ ...form, receiptFooter: e.target.value })} placeholder="Thank you for your patronage!" />

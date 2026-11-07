@@ -6,7 +6,7 @@ import type { TourStep } from "@/components/tour/ProductTour";
  * inline so the wording lives in one obvious place, and split by screen
  * because a till-only staff account never sees half of this nav.
  */
-export function buildDashboardTour(t: { pos: string; products: string }): TourStep[] {
+export function buildDashboardTour(_t: { pos: string; products: string }): TourStep[] {
   return [
     {
       target: "center",
@@ -15,8 +15,8 @@ export function buildDashboardTour(t: { pos: string; products: string }): TourSt
     },
     {
       target: "nav-pos",
-      title: t.pos,
-      body: `This is your till — ring up a sale from here, and anything specific to how you sell (rooms, jobs, the kitchen) hangs off this same group.`,
+      title: "Sales",
+      body: `Sales: ring up a sale, look back at past sales and handle returns. Anything specific to your trade (rooms, jobs, the kitchen) sits under Operations.`,
       placement: "right",
     },
     {
@@ -27,8 +27,8 @@ export function buildDashboardTour(t: { pos: string; products: string }): TourSt
     },
     {
       target: "nav-products",
-      title: t.products,
-      body: "Your catalog, stock-in, and everything about how you buy and hold stock.",
+      title: "Inventory",
+      body: "Your catalog, stock levels and counts. Buying stock in and suppliers sit under Purchases.",
       placement: "right",
     },
     {

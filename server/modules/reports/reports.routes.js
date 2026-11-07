@@ -32,7 +32,8 @@ reportsRouter.get("/:kind", async (req, res) => {
   }
 
   const format = req.query.format === "xlsx" ? "xlsx" : "pdf";
-  const report = await buildReport(req.ctx, kind, req.query.days);
+  const { from, to, type, method } = req.query;
+  const report = await buildReport(req.ctx, kind, req.query.days, { from, to, type, method });
   if (!report) return res.status(404).json({ error: "not_found", message: "That report isn't available." });
 
   const buffer = format === "xlsx" ? await renderXlsx(report) : await renderPdf(report);

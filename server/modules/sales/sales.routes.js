@@ -74,9 +74,10 @@ const checkoutSchema = z.object({
     .min(1, "The cart is empty"),
   discount: z.number().min(0).default(0),
   payments: z
-    .array(z.object({ method: z.enum(["cash", "pos", "transfer"]), amount: z.number().min(0) }))
+    // store_credit: paid from the customer's store credit (from a return or an exchange).
+    .array(z.object({ method: z.enum(["cash", "pos", "transfer", "store_credit"]), amount: z.number().min(0) }))
     .min(1, "Choose a payment method")
-    .max(3, "At most one entry per payment method"),
+    .max(4, "At most one entry per payment method"),
   
   tendered: z.number().min(0).optional(),
   customerId: z.string().optional(),
@@ -120,7 +121,7 @@ salesRouter.post("/", requirePerm("sales"), requireBranch, async (req, res) => {
 
 function buildSalesFilter(req) {
   const filter = { businessId: req.ctx.businessId, branchId: req.ctx.branchId };
-  const canSeeAll = req.ctx.perms.includes("*") || req.ctx.perms.includes("dashboard_ops");
+  const canSeeAll = req.ctx.perms.includes("*") || req.ctx.perms.includes("sales_view");
   if (req.query.mine === "1" || !canSeeAll) {
     // Staff see their own sales only.
     filter.staffId = req.ctx.userId;
@@ -170,7 +171,7 @@ function buildSalesFilter(req) {
 // GET /api/sales — branch sales history, paged.
 // Filters: date | from&to | staffId | customerId | productId | method |
 //          minTotal&maxTotal | status | saleNo | mine=1
-salesRouter.get("/", requirePerm("sales", "dashboard_ops"), requireBranch, async (req, res) => {
+salesRouter.get("/", requirePerm("sales", "sales_view"), requireBranch, async (req, res) => {
   const filter = buildSalesFilter(req);
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
   const page = Math.max(Number(req.query.page) || 1, 1);
@@ -237,14 +238,14 @@ salesRouter.get("/", requirePerm("sales", "dashboard_ops"), requireBranch, async
 });
 
 // GET /api/sales/:id — one sale (receipt reprint, return submission)
-salesRouter.get("/:id", requirePerm("sales", "dashboard_ops"), async (req, res) => {
+salesRouter.get("/:id", requirePerm("sales", "sales_view"), async (req, res) => {
   const sale = await Sale.findOne({ _id: req.params.id, businessId: req.ctx.businessId });
   if (!sale) return res.status(404).json({ error: "not_found", message: "Sale not found." });
   res.json({ sale: shapeSale(sale, canSeeCost(req.ctx)) });
 });
 
 // GET /api/sales/:id/receipt — the receipt again (reprint, or send it to the customer on WhatsApp)
-salesRouter.get("/:id/receipt", requirePerm("sales", "dashboard_ops"), async (req, res) => {
+salesRouter.get("/:id/receipt", requirePerm("sales", "sales_view"), async (req, res) => {
   const sale = await Sale.findOne({ _id: req.params.id, businessId: req.ctx.businessId });
   if (!sale) return res.status(404).json({ error: "not_found", message: "Sale not found." });
   const customer = sale.customerId ? await Customer.findOne({ _id: sale.customerId, businessId: req.ctx.businessId }).select("phone whatsapp") : null;
@@ -323,6 +324,12 @@ salesRouter.post("/:id/void", requirePerm("void_sales"), async (req, res) => {
         await customer.save({ session });
         // A credit sale that gets voided never happened — the customer
         // shouldn't be left owing money for it.
+        // Store credit spent on a sale that never happened goes back to the customer.
+        const storePaid = sale.payments.find((p) => p.method === "store_credit");
+        if (storePaid?.amount > 0) {
+          const { changeStoreCredit } = await import("#modules/customers/storeCredit.js");
+          await changeStoreCredit(req.ctx, customer._id, storePaid.amount, { refType: "void", refId: sale._id, refNo: sale.saleNo, session });
+        }
         const creditPaid = sale.payments.find((p) => p.method === "credit");
         if (creditPaid) {
           const { applyCreditChange } = await import("#modules/customers/customerLedger.model.js");

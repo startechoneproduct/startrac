@@ -3,7 +3,7 @@ import { Membership } from "#modules/auth/membership.model.js";
 import { Business } from "#modules/business/business.model.js";
 import { Branch } from "#modules/business/branch.model.js";
 import { User } from "#modules/auth/user.model.js";
-import { permsForRole } from "#modules/auth/auth.service.js";
+import { permsForMembership } from "#modules/auth/auth.service.js";
 import { hasCapability } from "#shared/businessTypes.js";
 import { Account } from "#modules/auth/account.model.js";
 import { planStatus, planAllows, requiredPlanFor, limitOf, PLANS, FEATURES } from "#shared/plans.js";
@@ -87,7 +87,7 @@ export async function tenantContext(req, res, next) {
       branchId: effectiveBranchId || null,
       branchLocked,
       role,
-      perms: permsForRole(role, membership.permsOverride || []),
+      perms: permsForMembership(membership),
       membership,
       business,
     };

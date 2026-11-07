@@ -36,6 +36,8 @@ import { Activity } from "@/pages/Activity";
 import { Settings } from "@/pages/Settings";
 import { Audit } from "@/pages/Audit";
 import { Tickets } from "@/pages/Tickets";
+import { Help } from "@/pages/Help";
+import { SupportDesk } from "@/pages/desk/SupportDesk";
 import { AskAI } from "@/pages/AskAI";
 import { Members } from "@/pages/Members";
 import { Academy } from "@/pages/Academy";
@@ -80,6 +82,9 @@ export default function App() {
       <Route path="/s/:slug" element={<BusinessSite />} />
       <Route path="/i/:token" element={<InvoiceView />} />
       <Route path="/r/:token" element={<ReceiptView />} />
+      {/* StarTrack's support desk: its own frame, apart from the console. */}
+      <Route path="/desk" element={<RequirePlatform><SupportDesk /></RequirePlatform>} />
+      <Route path="/desk/:view" element={<RequirePlatform><SupportDesk /></RequirePlatform>} />
       <Route
         path="/admin"
         element={
@@ -140,6 +145,7 @@ export default function App() {
         <Route path="my-site" element={<FeatureGate feature="sitePage"><MySite /></FeatureGate>} />
         <Route path="audit" element={<FeatureGate feature="auditLog"><Audit /></FeatureGate>} />
         <Route path="tickets" element={<Tickets />} />
+        <Route path="help" element={<Help />} />
         <Route path="ask-ai" element={<FeatureGate feature="ai"><AskAI /></FeatureGate>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

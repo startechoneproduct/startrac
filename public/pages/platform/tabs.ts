@@ -5,6 +5,8 @@ export const ADMIN_TABS = [
   { key: "accounts", label: "Accounts", overseerOnly: false },
   { key: "businesses", label: "Businesses", overseerOnly: false },
   { key: "subscriptions", label: "Subscriptions", overseerOnly: false },
+  { key: "users", label: "People", overseerOnly: false },
+  { key: "activity", label: "Activity", overseerOnly: false },
   { key: "support", label: "Support", overseerOnly: false },
   { key: "team", label: "Team", overseerOnly: true },
 ] as const;

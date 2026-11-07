@@ -219,10 +219,21 @@ async function transactionsReport(ctx, days) {
   return out;
 }
 
-async function expensesReport(ctx, days) {
-  const period = periodFor(days);
+const METHOD_LABEL = { cash: "Cash", transfer: "Bank transfer", pos: "POS", card: "Card", cheque: "Cheque", other: "Other" };
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+// opts (from the Expenses page): an exact from/to range, and the category or payment method it was filtered to.
+async function expensesReport(ctx, days, opts = {}) {
+  const ranged = DAY.test(opts.from || "") && DAY.test(opts.to || "") && opts.from <= opts.to;
+  const period = ranged
+    ? { label: `${opts.from} to ${opts.to}`, from: opts.from, to: opts.to, days: Math.round((new Date(`${opts.to}T00:00:00`) - new Date(`${opts.from}T00:00:00`)) / 86400000) + 1 }
+    : periodFor(days);
   const since = new Date(`${period.from}T00:00:00`);
-  const rows = await Expense.find({ businessId: ctx.businessId, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), at: { $gte: since } }).sort({ at: -1 }).limit(2000);
+  const until = new Date(new Date(`${period.to}T00:00:00`).getTime() + 86400000);
+  const filter = { businessId: ctx.businessId, ...(ctx.branchId ? { branchId: ctx.branchId } : {}), at: { $gte: since, $lt: until } };
+  if (opts.type) filter.type = String(opts.type);
+  if (opts.method && METHOD_LABEL[opts.method]) filter.paymentMethod = opts.method;
+  const rows = await Expense.find(filter).sort({ at: -1 }).limit(5000);
 
   const out = await frame(ctx, "expenses", { period });
   const total = sum(rows, "amount");
@@ -257,13 +268,15 @@ async function expensesReport(ctx, days) {
     title: "All entries",
     columns: [
       { key: "at", label: "Date", format: "date" },
-      { key: "type", label: "Type", format: "text" },
-      { key: "notes", label: "Notes", format: "text" },
+      { key: "type", label: "Category", format: "text" },
+      { key: "notes", label: "Description", format: "text" },
+      { key: "method", label: "Paid with", format: "text" },
+      { key: "reference", label: "Receipt no.", format: "text" },
       { key: "paidBy", label: "Paid by", format: "text" },
       { key: "actorName", label: "Recorded by", format: "text" },
       { key: "amount", label: "Amount", format: "money", align: "right" },
     ],
-    rows: rows.map((e) => ({ at: e.at, type: e.type, notes: e.notes || "—", paidBy: e.paidBy || "—", actorName: e.actorName, amount: e.amount })),
+    rows: rows.map((e) => ({ at: e.at, type: e.type, notes: e.notes || "—", method: METHOD_LABEL[e.paymentMethod] || "Cash", reference: e.reference || "—", paidBy: e.paidBy || "—", actorName: e.actorName, amount: e.amount })),
     totals: { type: "Total", amount: total },
   });
   if (types[0]) out.highlights.push(`${types[0].type} was the biggest cost at ${fmt(out.currency, types[0].amount)} (${share(types[0].amount, total)}% of spending).`);
@@ -505,14 +518,14 @@ async function summaryReport(ctx) {
   return out;
 }
 
-export async function buildReport(ctx, kind, days) {
+export async function buildReport(ctx, kind, days, opts = {}) {
   if (!canBuild(ctx, kind)) return null;
   const d = clampDays(days);
   switch (kind) {
     case "summary": return summaryReport(ctx);
     case "sales": return salesReport(ctx, d);
     case "transactions": return transactionsReport(ctx, d);
-    case "expenses": return expensesReport(ctx, d);
+    case "expenses": return expensesReport(ctx, d, opts);
     case "inventory": return inventoryReport(ctx);
     case "customers": return customersReport(ctx);
     case "staff": return staffReport(ctx);

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ChevronDown, KeyRound, LogOut, Store, Building2, Plus, Menu, Lock } from "lucide-react";
+import { ChevronDown, KeyRound, LogOut, Store, Building2, Plus, Menu, Lock, RefreshCw, Check } from "lucide-react";
+import { refreshAll } from "@/lib/useApi";
 import { Button } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { NotificationBell } from "@/components/layout/NotificationBell";
@@ -12,6 +13,7 @@ import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
+import { businessLogoUrl } from "@/lib/logo";
 
 // Staff change their own till PIN — requires the current one when set.
 function ChangePinModal({ open, onClose, businessId }: { open: boolean; onClose: () => void; businessId: string }) {
@@ -86,7 +88,9 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
       <div className="flex items-center min-w-0 shrink max-md:hidden">
         <div className="relative">
           <button onClick={() => { setBizOpen((v) => !v); setBranchOpen(false); setUserOpen(false); }} className={cn(chip, !multiBiz && "cursor-default hover:bg-transparent")}>
-            <span className="w-6 h-6 rounded-lg bg-primary-soft text-primary flex items-center justify-center shrink-0"><Store className="w-3.5 h-3.5" strokeWidth={2} /></span>
+            {businessLogoUrl(activeBusiness)
+              ? <img src={businessLogoUrl(activeBusiness)} alt="" className="w-6 h-6 rounded-lg object-contain bg-white shrink-0" />
+              : <span className="w-6 h-6 rounded-lg bg-primary-soft text-primary flex items-center justify-center shrink-0"><Store className="w-3.5 h-3.5" strokeWidth={2} /></span>}
             <span className="truncate max-w-[150px]">{activeBusiness?.name}</span>
             {multiBiz && <ChevronDown className="w-3.5 h-3.5 text-t3" />}
           </button>
@@ -132,6 +136,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
             <Plus className="w-4 h-4" /> <span className="max-sm:hidden">New sale</span>
           </Link>
         )}
+        <RefreshButton />
         <span data-tour="topbar-notifications" className="flex">
           <NotificationBell />
         </span>
@@ -176,5 +181,29 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
 
       <ChangePinModal open={pinOpen} onClose={() => setPinOpen(false)} businessId={activeBusiness?.id || ""} />
     </header>
+  );
+}
+
+/** Fetches everything on screen again, quietly, without reloading the app. */
+export function RefreshButton() {
+  const [state, setState] = useState<"idle" | "busy" | "done">("idle");
+  async function go() {
+    if (state === "busy") return;
+    setState("busy");
+    // Long enough to see it turn, even when the answer is instant.
+    await Promise.all([refreshAll(), new Promise((r) => setTimeout(r, 450))]);
+    setState("done");
+    setTimeout(() => setState("idle"), 1200);
+  }
+  return (
+    <button
+      type="button"
+      onClick={go}
+      title="Refresh the figures on this page"
+      aria-label={state === "busy" ? "Refreshing" : state === "done" ? "Up to date" : "Refresh"}
+      className="grid place-items-center w-10 h-10 rounded-full border border-line-2 bg-surface text-t2 hover:text-primary hover:border-primary transition-colors"
+    >
+      {state === "done" ? <Check className="w-4 h-4 text-success" /> : <RefreshCw className={cn("w-4 h-4", state === "busy" && "animate-spin")} />}
+    </button>
   );
 }

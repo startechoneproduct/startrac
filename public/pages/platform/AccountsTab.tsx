@@ -6,6 +6,7 @@ import { Pager } from "@/components/ui/Pager";
 import { useApi } from "@/lib/useApi";
 import { fmtDate } from "@/lib/format";
 import { Avatar, EmptyBlock, PageHeader, Panel, Pill, SearchBox, Segmented, naira } from "./ui";
+import { ExportButton } from "./ExportButton";
 
 type Account = {
   id: string; name: string; plan: string; legacy: boolean; status: string; isSandbox: boolean; createdAt: string;
@@ -45,6 +46,7 @@ export function AccountsTab({ onOpenAccount }: { onOpenAccount: (id: string) => 
           <>
             <Segmented value={status} onChange={(v) => { setStatus(v); setPage(1); }} options={[{ value: "all", label: "All" }, { value: "suspended", label: "Suspended" }]} />
             <SearchBox value={q} onChange={setQ} placeholder="Search accounts…" className="w-64" />
+            <ExportButton kind="accounts" />
           </>
         }
       />

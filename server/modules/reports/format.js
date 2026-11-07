@@ -10,7 +10,8 @@ export function formatValue(value, format, currency = "₦", dec = false) {
     case "money": {
       const n = Number(value);
       if (!Number.isFinite(n)) return String(value);
-      const body = `${currency}${NUM(Math.abs(n), dec || !Number.isInteger(n) ? 2 : 0, 2)}`;
+      const gap = /[A-Za-z]$/.test(currency) ? " " : "";
+      const body = `${currency}${gap}${NUM(Math.abs(n), dec || !Number.isInteger(n) ? 2 : 0, 2)}`;
       return n < 0 ? `−${body}` : body;
     }
     case "int": return Number.isFinite(Number(value)) ? NUM(value, 0, 0) : String(value);

@@ -372,7 +372,7 @@ export async function sendDigest(business) {
     status: "open",
     emailedAt: null,
     // Personal ones go to the person, and a new online order is emailed the moment it arrives.
-    type: { $nin: ["perm_changed", "ticket_update", "online_order"] },
+    type: { $nin: ["perm_changed", "ticket_update", "help_update", "online_order"] },
   }).sort({ severity: -1, createdAt: 1 });
   if (!pending.length) return { sent: false, reason: "nothing_new" };
 

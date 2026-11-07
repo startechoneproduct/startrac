@@ -8,6 +8,8 @@ const userSchema = new mongoose.Schema(
     phone: { type: String, default: "", trim: true },
     passwordHash: { type: String, required: true },
     status: { type: String, enum: ["active", "suspended"], default: "active" },
+    // When they last signed in (password or till PIN), for the platform console's usage figures.
+    lastLoginAt: { type: Date, default: null },
 
     // Soft flags, never a login/feature gate on their own — see
     // verify.routes.js. A business simply nags or disables a channel-specific

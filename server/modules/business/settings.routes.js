@@ -13,6 +13,9 @@ import { Membership } from "#modules/auth/membership.model.js";
 import { Sale } from "#modules/sales/sale.model.js";
 import { withTransaction } from "#core/tx.js";
 import { typeTemplate, TOGGLEABLE_MODULES, ALL_TOGGLEABLE } from "#shared/businessTypes.js";
+import { findCurrency, currencyCodeOf } from "#shared/currencies.js";
+import multer from "multer";
+import { LOGO_MAX_BYTES, logoUrlFor, removeLogo, saveLogo, sniffImage } from "#modules/business/logo.js";
 
 export const settingsRouter = Router();
 
@@ -25,8 +28,12 @@ function shapeBusiness(b) {
     typeLabel: template.label,
     code: b.code,
     taxId: b.taxId || "",
+    logoUrl: logoUrlFor(b),
     settings: {
       currency: b.settings.currency,
+      currencyCode: currencyCodeOf(b.settings),
+      address: b.settings.address || "",
+      phone: b.settings.phone || "",
       vatEnabled: b.settings.vatEnabled,
       vatRate: b.settings.vatRate,
       receiptFooter: b.settings.receiptFooter,
@@ -79,7 +86,9 @@ settingsRouter.get("/", requirePerm("settings"), async (req, res) => {
 
 const updateSchema = z.object({
   name: z.string().min(2).optional(),
-  currency: z.string().min(1).max(4).optional(),
+  currency: z.string().max(8).optional(), // a code ("USD") or symbol; checked below
+  address: z.string().trim().max(160).optional(),
+  phone: z.string().trim().max(40).optional(),
   vatEnabled: z.boolean().optional(),
   vatRate: z.number().min(0).max(50).optional(),
   receiptFooter: z.string().max(200).optional(),
@@ -154,7 +163,18 @@ settingsRouter.patch("/", requirePerm("settings"), async (req, res) => {
   const business = await Business.findById(req.ctx.businessId);
   const before = shapeBusiness(business);
   if (d.name !== undefined) business.name = d.name;
-  if (d.currency !== undefined) business.settings.currency = d.currency;
+  if (d.currency !== undefined) {
+    const cur = findCurrency(d.currency);
+    if (cur) {
+      business.settings.currency = cur.symbol;
+      business.settings.currencyCode = cur.code;
+    } else if (d.currency !== business.settings.currency) {
+      // A symbol typed by hand before the list existed is kept as it is; anything new must come from the list.
+      return res.status(400).json({ error: "invalid", message: "Choose a currency from the list." });
+    }
+  }
+  if (d.address !== undefined) business.settings.address = d.address;
+  if (d.phone !== undefined) business.settings.phone = d.phone;
   if (d.vatEnabled !== undefined) business.settings.vatEnabled = d.vatEnabled;
   if (d.vatRate !== undefined) business.settings.vatRate = d.vatRate;
   if (d.receiptFooter !== undefined) business.settings.receiptFooter = d.receiptFooter;
@@ -199,6 +219,31 @@ const branchSchema = z.object({
 });
 
 // POST /api/settings/branches — owner-level growth path
+const logoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: LOGO_MAX_BYTES } });
+
+// POST /api/settings/logo (multipart "file") — the business's logo: PNG, JPEG or WebP, checked by its contents.
+settingsRouter.post("/logo", requirePerm("settings"), (req, res, next) => {
+  logoUpload.single("file")(req, res, (err) => {
+    if (err) return res.status(400).json({ error: "invalid", message: err.code === "LIMIT_FILE_SIZE" ? "That logo is too large. Use an image under 200 KB." : "That file couldn't be read." });
+    next();
+  });
+}, async (req, res) => {
+  const mime = sniffImage(req.file?.buffer);
+  if (!mime) return res.status(400).json({ error: "invalid", message: "Upload the logo as a PNG, JPEG or WebP image." });
+  const business = await Business.findById(req.ctx.businessId);
+  const logoUrl = await saveLogo(business, req.file.buffer, mime);
+  audit(req.ctx, "settings.logo", { type: "business", id: business._id, label: business.name }, undefined, { changed: "logo" });
+  res.json({ logoUrl });
+});
+
+// DELETE /api/settings/logo
+settingsRouter.delete("/logo", requirePerm("settings"), async (req, res) => {
+  const business = await Business.findById(req.ctx.businessId);
+  await removeLogo(business);
+  audit(req.ctx, "settings.logo", { type: "business", id: business._id, label: business.name }, undefined, { changed: "logo removed" });
+  res.json({ logoUrl: "" });
+});
+
 settingsRouter.post("/branches", requirePerm("*"), async (req, res) => {
   const parsed = branchSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid", message: parsed.error.issues[0].message });
@@ -262,7 +307,7 @@ const newBusinessSchema = z.object({
   businessType: z.string().default("restaurant"),
   tradingName: z.string().default(""),
   taxId: z.string().default(""),
-  currency: z.string().min(1).max(4).default("₦"),
+  currency: z.string().default("NGN").refine((v) => !!findCurrency(v), "Choose a currency from the list"),
   branchName: z.string().default("Main Branch"),
 });
 
@@ -293,7 +338,7 @@ settingsRouter.post("/businesses", requirePerm("*"), async (req, res) => {
         typeKey: d.businessType,
         tradingName: d.tradingName,
         taxId: d.taxId,
-        settings: { currency: d.currency, modules: typeTemplate(d.businessType).modules },
+        settings: { currency: findCurrency(d.currency).symbol, currencyCode: findCurrency(d.currency).code, modules: typeTemplate(d.businessType).modules },
       }], { session });
 
       [created.branch] = await Branch.create([{

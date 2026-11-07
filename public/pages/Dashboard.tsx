@@ -5,8 +5,9 @@ import {
   Boxes, CalendarClock, Receipt, Users, UserCog, ArrowDownToLine, ArrowUpFromLine, History,
   ReceiptText, ArrowLeftRight, Undo2, Wrench, RotateCcw, Sparkles, Compass, Lock, ShoppingBag } from "lucide-react";
 import {
-  Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Area, AreaChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
+import { Segmented } from "@/components/ui/Segmented";
 import { Button } from "@/components/ui/Button";
 import { Badge, Card } from "@/components/ui/Card";
 import { Panel } from "@/components/ui/Panel";
@@ -54,11 +55,11 @@ function ChartTooltip({ active, payload, label, currency }: any) {
   );
 }
 
-type Tab = "overview" | "sales" | "expenses" | "inventory" | "movement" | "customers" | "staff" | "expiry" | "archive";
+type Tab = "overview" | "profit" | "sales" | "expenses" | "inventory" | "movement" | "customers" | "staff" | "expiry" | "archive";
 
-// The tabs a plan can lock. Overview, Sales and Expenses are on every plan.
+// The tabs a plan can lock. Overview, Sales and Expenses are on every plan; Profit & Loss is Pro.
 const TAB_FEATURE: Partial<Record<string, string>> = {
-  inventory: "advancedDashboard", movement: "advancedDashboard", customers: "advancedDashboard",
+  profit: "advancedDashboard", inventory: "advancedDashboard", movement: "advancedDashboard", customers: "advancedDashboard",
   staff: "advancedDashboard", expiry: "expiry", archive: "advancedDashboard",
 };
 
@@ -138,6 +139,7 @@ export function Dashboard() {
       <div className="flex items-center gap-1 border-b border-line max-w-full overflow-x-auto mb-6" data-tour="dashboard-tabs">
         {([
           { k: "overview", label: "Overview", icon: Wallet },
+          ...(can("dashboard_finance") ? [{ k: "profit", label: "Profit & Loss", icon: TrendingUp }] : []),
           { k: "sales", label: "Sales", icon: Receipt },
           ...(hasModule("expenses") ? [{ k: "expenses", label: "Expenses", icon: ReceiptText }] : []),
           { k: "inventory", label: "Inventory", icon: Boxes },
@@ -163,6 +165,7 @@ export function Dashboard() {
 
       {TAB_FEATURE[tab] && !hasFeature(TAB_FEATURE[tab]!) ? <LockedPage feature={TAB_FEATURE[tab]!} /> : (
         <>
+          {tab === "profit" && <ProfitTab currency={currency} branchKey={activeBranch?.id} />}
           {tab === "sales" && <SalesTab currency={currency} branchKey={activeBranch?.id} />}
           {tab === "expenses" && <ExpensesTab currency={currency} branchKey={activeBranch?.id} />}
           {tab === "inventory" && <InventoryTab currency={currency} branchKey={activeBranch?.id} />}
@@ -1044,6 +1047,163 @@ function InventoryTab({ currency, branchKey }: { currency: string; branchKey?: s
             )}
           </Panel>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Profit & Loss tab ────────────────────────────────────────
+type FinanceTotals = {
+  revenue: number; vat: number; netSales: number; cogs: number; grossProfit: number; waste: number;
+  expenses: number; netProfit: number; refunds: number; txns: number; grossMargin: number; netMargin: number;
+};
+type FinanceReport = {
+  period: string; from: string; to: string;
+  current: FinanceTotals; previous: FinanceTotals;
+  trendBy: "day" | "month";
+  trend: { key: string; revenue: number; cogs: number; expenses: number; netProfit: number }[];
+  expensesByType: { type: string; amount: number; count: number }[];
+  stock: { purchases: number; deliveries: number; valueAtCost: number; valueAtPrice: number };
+};
+type FinPeriod = "today" | "week" | "month" | "year";
+const FIN_PERIODS = [["today", "Today"], ["week", "Last 7 days"], ["month", "This month"], ["year", "This year"]] as const;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const dayLabel = (d: string) => `${Number(d.slice(8, 10))} ${MONTHS[Number(d.slice(5, 7)) - 1]}`;
+const changePct = (now: number, before: number) => (before ? Math.round(((now - before) / Math.abs(before)) * 100) : 0);
+
+function FinanceTooltip({ active, payload, label, currency }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg bg-surface border border-line-2 shadow-e2 px-3 py-2 space-y-1">
+      <div className="text-[11px] font-semibold text-t3">{label}</div>
+      {payload.map((p: any) => (
+        <div key={p.dataKey} className="flex items-center gap-2 text-[12.5px]">
+          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: p.color }} />
+          <span className="text-t2">{p.name}</span>
+          <span className="ml-auto pl-3 font-mono font-semibold text-t1">{fmtMoney(p.value, currency)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The money view: what came in, what it cost, and what is left. Every figure
+ * comes from the server's own daily totals (see buildFinanceReport), so it
+ * matches the sales list, returns and expenses exactly.
+ */
+function ProfitTab({ currency, branchKey }: { currency: string; branchKey?: string }) {
+  const [period, setPeriod] = useState<FinPeriod>("month");
+  const { data: r, loading, error } = useApi<FinanceReport>(`/metrics/finance?period=${period}`, [branchKey, period]);
+  const money = (n: number) => fmtMoney(n, currency);
+  const periodName = FIN_PERIODS.find(([k]) => k === period)?.[1];
+  const vs = period === "today" ? "compared with yesterday" : period === "year" ? "compared with the same time last year" : period === "month" ? "compared with the same days last month" : "compared with the 7 days before";
+
+  const picker = (
+    <div className="flex items-center gap-3 flex-wrap">
+      <Segmented options={FIN_PERIODS} value={period} onChange={setPeriod} />
+      {r && <span className="text-[12.5px] text-t3">{r.from === r.to ? fmtDate(r.from) : `${fmtDate(r.from)} to ${fmtDate(r.to)}`}, {vs}</span>}
+    </div>
+  );
+  if (error) return <div className="space-y-5">{picker}<Card><EmptyState icon={TrendingUp} title="Couldn't load profit and loss" body={error} /></Card></div>;
+  if (loading || !r) return <div className="space-y-5">{picker}<Spinner /></div>;
+
+  const c = r.current, p = r.previous;
+  const lines: { label: string; value: number; kind?: "less" | "total" | "result"; note?: string }[] = [
+    { label: "Sales (after refunds)", value: c.revenue, note: c.refunds ? `${money(c.refunds)} refunded` : undefined },
+    { label: "VAT collected", value: c.vat, kind: "less" },
+    { label: "Net sales", value: c.netSales, kind: "total" },
+    { label: "Cost of goods sold", value: c.cogs, kind: "less", note: "what the items sold cost you" },
+    { label: "Gross profit", value: c.grossProfit, kind: "total", note: `${c.grossMargin}% of net sales` },
+    { label: "Waste and damage", value: c.waste, kind: "less" },
+    { label: "Operating expenses", value: c.expenses, kind: "less" },
+    { label: c.netProfit < 0 ? "Net loss" : "Net profit", value: c.netProfit, kind: "result", note: `${c.netMargin}% of net sales` },
+  ];
+  const chart = r.trend.map((t) => ({ ...t, label: r.trendBy === "month" ? MONTHS[Number(t.key.slice(5, 7)) - 1] : dayLabel(t.key) }));
+  const quiet = c.txns === 0 && c.expenses === 0;
+  const dot = chart.length <= 12 ? { r: 4, strokeWidth: 2, fill: "var(--color-surface)" } : false;
+
+  return (
+    <div className="space-y-5">
+      {picker}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+        <StatCard label="Sales" value={money(c.revenue)} icon={Wallet} change={changePct(c.revenue, p.revenue)} hint={`${c.txns} ${c.txns === 1 ? "sale" : "sales"}`} />
+        <StatCard tone="warning" label="Cost of goods sold" value={money(c.cogs)} icon={Package} hint="cost of the items sold" />
+        <StatCard tone="danger" label="Expenses" value={money(c.expenses + c.waste)} icon={ReceiptText} hint={c.waste ? `includes ${money(c.waste)} waste` : "rent, fuel, salaries and more"} />
+        <StatCard tone={c.netProfit < 0 ? "danger" : "success"} label={c.netProfit < 0 ? "Net loss" : "Net profit"} value={money(c.netProfit)} icon={TrendingUp}
+          change={changePct(c.netProfit, p.netProfit)} hint={`${c.netMargin}% margin`} />
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+        <Panel className="xl:col-span-2" icon={Receipt} title="Profit and loss" subtitle={periodName}>
+          <dl className="text-[13px]">
+            {lines.map((l) => (
+              <div key={l.label} className={cn("flex items-baseline justify-between gap-3 py-2",
+                l.kind === "total" && "border-t border-line font-semibold",
+                l.kind === "result" && "border-t-2 border-line-2 mt-1 pt-3 font-bold text-[14.5px]")}>
+                <dt className={cn("min-w-0", l.kind === "less" ? "text-t2 pl-3" : "text-t1")}>
+                  {l.kind === "less" ? `Less ${l.label.startsWith("VAT") ? l.label : l.label[0].toLowerCase() + l.label.slice(1)}` : l.label}
+                  {l.note && <span className="block text-[11.5px] font-normal text-t3">{l.note}</span>}
+                </dt>
+                <dd className={cn("font-mono tabular-nums shrink-0",
+                  l.kind === "less" ? "text-t2" : "text-t1",
+                  l.kind === "result" && (l.value < 0 ? "text-danger" : "text-success"))}>
+                  {l.kind === "less" ? `(${money(l.value)})` : money(l.value)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </Panel>
+
+        <Panel className="xl:col-span-3" icon={TrendingUp} title="Sales and net profit" subtitle={r.trendBy === "month" ? "By month" : "By day"}>
+          {quiet ? (
+            <div className={EMPTY}>No sales or expenses in this period yet.</div>
+          ) : (
+            <div className="h-[280px]" role="img" aria-label={`Line chart of sales and net profit ${r.trendBy === "month" ? "by month" : "by day"}`}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chart} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
+                  <CartesianGrid vertical={false} stroke="var(--color-line)" />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "var(--color-t3)", fontSize: 11 }} minTickGap={16} />
+                  <YAxis tickLine={false} axisLine={false} width={56} tick={{ fill: "var(--color-t3)", fontSize: 11 }}
+                    tickFormatter={(v) => (Math.abs(v) >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}m` : Math.abs(v) >= 1000 ? `${Math.round(v / 1000)}k` : String(v))} />
+                  <Tooltip content={<FinanceTooltip currency={currency} />} cursor={{ stroke: "var(--color-line-2)", strokeDasharray: "4 4" }} />
+                  <Legend verticalAlign="top" align="right" iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingBottom: 8 }} />
+                  <Line type="linear" name="Sales" dataKey="revenue" stroke="var(--chart-1)" strokeWidth={2} dot={dot} activeDot={{ r: 5 }} />
+                  <Line type="linear" name="Net profit" dataKey="netProfit" stroke="var(--chart-2)" strokeWidth={2} dot={dot} activeDot={{ r: 5 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </Panel>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+        <Panel className="xl:col-span-2" icon={Boxes} tone="success" title="Stock" subtitle="What you bought and what you hold">
+          <dl className="text-[13px] divide-y divide-line">
+            <div className="flex items-baseline justify-between gap-3 py-2.5">
+              <dt className="text-t1">Stock bought in<span className="block text-[11.5px] text-t3">{r.stock.deliveries} {r.stock.deliveries === 1 ? "delivery" : "deliveries"} in this period</span></dt>
+              <dd className="font-mono tabular-nums text-t1">{money(r.stock.purchases)}</dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-3 py-2.5">
+              <dt className="text-t1">Stock on hand at cost<span className="block text-[11.5px] text-t3">what it cost you, today</span></dt>
+              <dd className="font-mono tabular-nums text-t1">{money(r.stock.valueAtCost)}</dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-3 py-2.5">
+              <dt className="text-t1">Stock on hand at selling price<span className="block text-[11.5px] text-t3">if it all sold at today's prices</span></dt>
+              <dd className="font-mono tabular-nums text-t1">{money(r.stock.valueAtPrice)}</dd>
+            </div>
+          </dl>
+          <p className="mt-3 text-[11.5px] text-t3">Stock you buy is not a cost until it sells. It becomes cost of goods sold as each item is sold.</p>
+        </Panel>
+
+        <Panel className="xl:col-span-3" icon={ReceiptText} tone="danger" title="Expenses by type" subtitle={periodName}>
+          {r.expensesByType.length === 0 ? (
+            <div className={EMPTY}>No expenses recorded in this period.</div>
+          ) : (
+            <BarList currency={currency} rows={r.expensesByType.map((e) => ({ label: e.type, sub: `${e.count} ${e.count === 1 ? "entry" : "entries"}`, value: e.amount }))} />
+          )}
+        </Panel>
       </div>
     </div>
   );

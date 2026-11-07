@@ -374,7 +374,7 @@ export function Docs() {
                 ["Take the product tour", "The first time you open the dashboard a short guided tour points out the sidebar, New Sale, dashboard tabs, search, alerts, settings and help. You can replay it any time from the button beside Refresh."],
                 ["Add your products", "Add items one by one, or import a spreadsheet. On Pro and above, the AI reads your file, maps the columns and shows a preview you approve before anything is created."],
                 ["Stock in and sell", "Record opening stock under Stock In, then ring up your first sale from the till."],
-                ["Invite your team", "Add staff under Dashboard → Staff, give each a role, and set PINs for those who will use the shared till."],
+                ["Invite your team", "Add staff under Staff, give each a role, and set PINs for those who will use the shared till."],
               ]}
             />
             <H3>How staff sign in</H3>
@@ -727,18 +727,18 @@ export function Docs() {
             <Table
               head={["Screen", "Where", "What it does"]}
               rows={[
-                ["Front Desk (Hotel)", "Till group", "Rooms as a calendar, check-in/out, and a folio that collects charges from reception, kitchen and extras and settles once at check-out."],
-                ["Kitchen Queue", "Till group", "Sale lines routed to the kitchen with a prep status per line."],
-                ["Job Tickets", "Till group", "Work taken in, progressed through stages over days, then collected. Used by blinds, electronics and laundry."],
-                ["Members (Gym)", "Till group", "Membership plans, subscriptions, check-ins and renewal reminders."],
-                ["Academy", "Till group", "Courses run as intakes; students enrol, pay fees in instalments and are marked present each session."],
-                ["Appointments (Salon)", "Till group", "Booked time against a person or a chair, with service catalog."],
-                ["Projects (Agency)", "Till group", "Work agreed for a budget, delivered in milestones, paid in stages and logged against hours."],
-                ["Cold Room", "Till group", "Cartons converted into kilograms and pieces, with shrinkage and power-failure loss tracked explicitly."],
-                ["Serial Numbers", "Stock group", "Each unit tracked individually with warranty and repair history."],
-                ["Production", "Stock group", "Consume raw materials, yield finished goods and measure the waste between."],
-                ["Batches (Poultry)", "Stock group", "Living batches that eat daily, suffer mortality and are harvested."],
-                ["Vaccination & Medication", "Dashboard group", "Dosage records for a flock or batch with next-due tracking."],
+                ["Front Desk (Hotel)", "Operations", "Rooms as a calendar, check-in/out, and a folio that collects charges from reception, kitchen and extras and settles once at check-out."],
+                ["Kitchen Queue", "Operations", "Sale lines routed to the kitchen with a prep status per line."],
+                ["Job Tickets", "Operations", "Work taken in, progressed through stages over days, then collected. Used by blinds, electronics and laundry."],
+                ["Members (Gym)", "Operations", "Membership plans, subscriptions, check-ins and renewal reminders."],
+                ["Academy", "Operations", "Courses run as intakes; students enrol, pay fees in instalments and are marked present each session."],
+                ["Appointments (Salon)", "Operations", "Booked time against a person or a chair, with service catalog."],
+                ["Projects (Agency)", "Operations", "Work agreed for a budget, delivered in milestones, paid in stages and logged against hours."],
+                ["Cold Room", "Operations", "Cartons converted into kilograms and pieces, with shrinkage and power-failure loss tracked explicitly."],
+                ["Serial Numbers", "Inventory", "Each unit tracked individually with warranty and repair history."],
+                ["Production", "Inventory", "Consume raw materials, yield finished goods and measure the waste between."],
+                ["Batches (Poultry)", "Inventory", "Living batches that eat daily, suffer mortality and are harvested."],
+                ["Vaccination & Medication", "Operations", "Dosage records for a flock or batch with next-due tracking."],
               ]}
             />
             <Callout kind="info" title="Service businesses sell time, not stock">
@@ -943,7 +943,7 @@ export function Docs() {
             <H3>Frequently asked questions</H3>
             <Faq
               items={[
-                ["How do my staff sign in?", "They type the business code once on the till device, then use only their PIN afterwards. Add staff and set PINs under Dashboard → Staff."],
+                ["How do my staff sign in?", "They type the business code once on the till device, then use only their PIN afterwards. Add staff and set PINs under Staff."],
                 ["Why can't my cashier see profit?", "Cost and profit are removed on the server for accounts without the finance permission. Grant it on their staff record if they should see it."],
                 ["The internet went down mid-sale.", "Keep selling. Sales queue on the device and sync when the connection returns; the till shows how many are waiting."],
                 ["A dashboard number looks wrong.", "Settings → Advanced → Recalculate this period rewrites the summary from your sales, returns and expenses. Nothing is deleted."],

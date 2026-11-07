@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ErrorBanner, Field, Input } from "@/components/ui/Field";
+import { CurrencySelect } from "@/components/ui/CurrencySelect";
 import { TYPE_META } from "@/lib/businessTypes";
 import { useSession } from "@/lib/session";
 import { BrandMark } from "@/components/brand/BrandMark";
@@ -14,6 +15,8 @@ import { PAYMENTS_ENABLED, PLANS, TRIAL_DAYS, bonusPlanFor } from "#shared/plans
 import { api } from "@/lib/api";
 import { fmtMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { LogoPicker } from "@/components/business/LogoPicker";
+import { blobToBase64 } from "@/lib/logo";
 
 const TYPE_ICON: Record<string, any> = {
   blinds: Blinds, electronics: Smartphone, hotel: BedDouble,
@@ -41,9 +44,11 @@ export function Register() {
   const [form, setForm] = useState({
     businessName: "", tradingName: "", businessType: "", taxId: "", employees: "",
     name: "", email: "", phone: "", password: "",
-    branchName: "Main Branch", currency: "₦",
+    branchName: "Main Branch", currency: "NGN",
   });
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
+  // Optional logo, shrunk in the browser; sent with the sign-up itself.
+  const [logo, setLogo] = useState<{ image: Blob; preview: string } | null>(null);
 
   const types = useMemo(() => {
     const all = Object.entries(TYPE_META).map(([key, m]) => ({ key, ...m }));
@@ -73,6 +78,7 @@ export function Register() {
         employees: Number(form.employees) || 0,
         branchName: form.branchName.trim(),
         currency: form.currency,
+        ...(logo ? { logo: await blobToBase64(logo.image) } : {}),
         ...(wantedPlan ? { plan: wantedPlan } : {}),
       } as any);
       // Plans are paid: go straight to paying for the one they chose. If payment can't open
@@ -198,6 +204,10 @@ export function Register() {
                       <Input value={form.tradingName} onChange={(e) => set({ tradingName: e.target.value })} placeholder="e.g. Tado Foods Ltd" />
                     </Field>
                   </div>
+                  <div>
+                    <div className="text-[12.5px] font-semibold text-t2 mb-1.5">Logo <span className="font-normal text-t3">(optional, you can add it later in Settings)</span></div>
+                    <LogoPicker url={logo?.preview || ""} onPick={(image, preview) => setLogo({ image, preview })} onRemove={() => setLogo(null)} />
+                  </div>
 
                   <div>
                     <div className="flex items-center justify-between mb-2">
@@ -295,8 +305,8 @@ export function Register() {
                     <Field label="Branch name">
                       <Input autoFocus value={form.branchName} onChange={(e) => set({ branchName: e.target.value })} placeholder="Main Branch" />
                     </Field>
-                    <Field label="Currency">
-                      <Input maxLength={4} value={form.currency} onChange={(e) => set({ currency: e.target.value })} />
+                    <Field label="Currency" hint="Used on every price, receipt, invoice and report">
+                      <CurrencySelect value={form.currency} onChange={(code) => set({ currency: code })} />
                     </Field>
                   </div>
 

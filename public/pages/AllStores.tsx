@@ -319,11 +319,6 @@ export function AllStores() {
               <BusinessCard key={b.id} b={b} index={i} onOpen={open} />
             ))}
           </div>
-
-          <p className="text-[12px] text-t3 leading-relaxed">
-            {data.from} → {data.to}. Profit / loss is gross profit minus expenses (refunds and recorded waste are already taken out of gross profit).
-            Stock value covers items with a stock record at that branch. Click a branch to switch into that store.
-          </p>
         </div>
       )}
     </div>

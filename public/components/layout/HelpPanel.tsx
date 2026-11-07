@@ -25,7 +25,7 @@ export function HelpPanel({ open, onClose }: { open: boolean; onClose: () => voi
   const answers = [
     {
       q: "How do my staff sign in?",
-      a: "They type the business code once on the till device, then use only their PIN after that. Add staff and set PINs under Dashboard → Staff.",
+      a: "They type the business code once on the till device, then use only their PIN after that. Add staff and set PINs under Staff.",
     },
     {
       q: "Why can't my cashier see profit?",

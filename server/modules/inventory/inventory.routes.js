@@ -13,6 +13,8 @@ import { money } from "#core/money.js";
 import { audit } from "#core/audit.js";
 import { afterStockChange } from "#modules/alerts/alerts.service.js";
 import { bumpDailyMetric, localDay } from "#modules/metrics/metrics.service.js";
+import { StockReceipt } from "#modules/inventory/stockReceipt.model.js";
+import { nextSeq } from "#core/counters.js";
 
 export const inventoryRouter = Router();
 
@@ -26,19 +28,39 @@ const stockInSchema = z.object({
       // market prices move delivery to delivery.
       unitCost: z.number().min(0).optional(),
     }))
-    .min(1, "Add at least one product"),
-  note: z.string().default(""),
+    .min(1, "Add at least one product")
+    .max(500, "Receive at most 500 lines at a time"),
+  note: z.string().max(300).default(""),
   supplierId: z.string().optional(),
+  // The day the goods arrived (defaults to today) and the supplier's invoice or delivery note number.
+  receivedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid date").optional(),
+  reference: z.string().trim().max(80).default(""),
+  source: z.enum(["form", "spreadsheet"]).default("form"),
 });
 
-// POST /api/inventory/stock-in — receive goods into the active branch
-inventoryRouter.post("/stock-in", requirePerm("stock"), requireBranch, async (req, res) => {
+// POST /api/inventory/stock-in — receive a delivery into the active branch.
+// Adds to what is on the shelf (never replaces it) and keeps the delivery
+// together as one numbered receipt (GRN) — see stockReceipt.model.js.
+inventoryRouter.post("/stock-in", requirePerm("stock_in"), requireBranch, async (req, res) => {
   const parsed = stockInSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid", message: parsed.error.issues[0].message });
-  const { items, note, supplierId } = parsed.data;
+  const { items, note, supplierId, reference, source } = parsed.data;
+  const receivedOn = parsed.data.receivedOn || localDay();
+  if (receivedOn > localDay()) return res.status(400).json({ error: "invalid", message: "Stock can't be received on a future date." });
   if (supplierId && !planAllows(req.ctx.plan, "suppliers")) return res.status(403).json(planRequired("suppliers"));
 
-  const products = await Product.find({ _id: { $in: items.map((i) => i.productId) }, businessId: req.ctx.businessId });
+  // The same product twice in one delivery is almost always a slip; say which.
+  const seen = new Set();
+  for (const i of items) {
+    if (seen.has(i.productId)) {
+      const dup = await Product.findOne({ _id: mongoose.isValidObjectId(i.productId) ? i.productId : null, businessId: req.ctx.businessId }).select("name");
+      return res.status(400).json({ error: "duplicate", message: `${dup?.name || "A product"} is listed twice. Put it on one line with the total quantity.` });
+    }
+    seen.add(i.productId);
+  }
+
+  const ids = items.map((i) => i.productId).filter((id) => mongoose.isValidObjectId(id));
+  const products = await Product.find({ _id: { $in: ids }, businessId: req.ctx.businessId });
   const byId = new Map(products.map((p) => [String(p._id), p]));
   if (byId.size !== items.length) {
     return res.status(400).json({ error: "invalid", message: "One of those products doesn't exist." });
@@ -51,9 +73,24 @@ inventoryRouter.post("/stock-in", requirePerm("stock"), requireBranch, async (re
   }
 
   const invByProduct = new Map(
-    (await Inventory.find({ branchId: req.ctx.branchId, productId: { $in: items.map((i) => i.productId) } }))
+    (await Inventory.find({ branchId: req.ctx.branchId, productId: { $in: ids } }))
       .map((i) => [String(i.productId), i.stock])
   );
+
+  const receipt = new StockReceipt({
+    accountId: req.ctx.accountId,
+    businessId: req.ctx.businessId,
+    branchId: req.ctx.branchId,
+    receiptNo: `GRN-${String(await nextSeq(`grn:${req.ctx.businessId}`)).padStart(4, "0")}`,
+    supplierId: supplier?._id || null,
+    supplierName: supplier?.name || "",
+    receivedOn,
+    reference,
+    note,
+    source,
+    actorId: req.ctx.userId,
+    actorName: req.ctx.actorName,
+  });
 
   const results = [];
   for (const item of items) {
@@ -79,17 +116,31 @@ inventoryRouter.post("/stock-in", requirePerm("stock"), requireBranch, async (re
       productName: product.name,
       type: "IN",
       qty: item.qty,
-      refType: "manual",
-      reason: note || "Stock in",
+      refType: "stock_receipt",
+      refId: receipt._id,
+      reason: [receipt.receiptNo, reference && `invoice ${reference}`, note].filter(Boolean).join(" · "),
       unitCost: item.unitCost,
       supplierId: supplier?._id,
       supplierName: supplier?.name || "",
     });
+    receipt.lines.push({
+      productId: product._id, name: product.name, qty: item.qty,
+      unitCost: item.unitCost ?? null, lineCost: item.unitCost !== undefined ? money(item.unitCost * item.qty) : null, stockAfter: balance,
+    });
     results.push({ productId: product._id, name: product.name, added: item.qty, stock: balance, cost: product.cost });
   }
+
+  receipt.totalQty = receipt.lines.reduce((s, l) => s + l.qty, 0);
+  receipt.costedLines = receipt.lines.filter((l) => l.lineCost !== null).length;
+  receipt.totalCost = receipt.costedLines ? money(receipt.lines.reduce((s, l) => s + (l.lineCost || 0), 0)) : null;
+  await receipt.save();
+
+  audit(req.ctx, "stock.receive", { type: "stock_receipt", id: receipt._id, label: receipt.receiptNo }, undefined, {
+    lines: receipt.lines.length, totalQty: receipt.totalQty, totalCost: receipt.totalCost, supplier: receipt.supplierName, reference,
+  });
   // Goods arrived — close any low-stock alerts the shelf just answered.
-  afterStockChange(req.ctx, req.ctx.branchId, items.map((i) => i.productId));
-  res.status(201).json({ items: results });
+  afterStockChange(req.ctx, req.ctx.branchId, ids);
+  res.status(201).json({ items: results, receipt: { id: receipt._id, receiptNo: receipt.receiptNo } });
 });
 
 const adjustSchema = z.object({
@@ -99,7 +150,7 @@ const adjustSchema = z.object({
 });
 
 // POST /api/inventory/adjust — set a corrected count (shrinkage, recount…)
-inventoryRouter.post("/adjust", requirePerm("stock"), requireBranch, async (req, res) => {
+inventoryRouter.post("/adjust", requirePerm("stock_adjust"), requireBranch, async (req, res) => {
   const parsed = adjustSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid", message: parsed.error.issues[0].message });
   const { productId, newQty, reason } = parsed.data;
@@ -142,7 +193,7 @@ const wasteSchema = z.object({
 // staff meal, damage, expiry. A distinct door from /adjust (a blunt
 // corrected-count tool) so it reads as its own thing in the ledger and can
 // be reported on separately from an ordinary correction.
-inventoryRouter.post("/waste", requirePerm("stock"), requireBranch, async (req, res) => {
+inventoryRouter.post("/waste", requirePerm("stock_adjust"), requireBranch, async (req, res) => {
   const parsed = wasteSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid", message: parsed.error.issues[0].message });
   const { productId, qty, wasteReason, note } = parsed.data;
@@ -184,7 +235,7 @@ const transferSchema = z.object({
 });
 
 // POST /api/inventory/transfer — move stock from the active branch to another
-inventoryRouter.post("/transfer", requirePerm("stock"), requireFeature("transfers"), requireBranch, async (req, res) => {
+inventoryRouter.post("/transfer", requirePerm("transfers"), requireFeature("transfers"), requireBranch, async (req, res) => {
   const parsed = transferSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "invalid", message: parsed.error.issues[0].message });
   const { toBranchId, items, note } = parsed.data;
@@ -260,7 +311,7 @@ inventoryRouter.post("/transfer", requirePerm("stock"), requireFeature("transfer
 });
 
 // GET /api/inventory/movements?productId=&type=&refType=&supplierId=&limit= — the ledger
-inventoryRouter.get("/movements", requirePerm("stock", "dashboard_ops"), requireBranch, async (req, res) => {
+inventoryRouter.get("/movements", requirePerm("inventory_view"), requireBranch, async (req, res) => {
   const filter = { businessId: req.ctx.businessId, branchId: req.ctx.branchId };
   if (req.query.productId) filter.productId = req.query.productId;
   if (req.query.type) filter.type = req.query.type;

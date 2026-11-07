@@ -10,6 +10,8 @@ import { BusinessesTab } from "@/pages/platform/BusinessesTab";
 import { SubscriptionsTab } from "@/pages/platform/SubscriptionsTab";
 import { SupportTab } from "@/pages/platform/SupportTab";
 import { TeamTab } from "@/pages/platform/TeamTab";
+import { UsersTab } from "@/pages/platform/UsersTab";
+import { ActivityTab } from "@/pages/platform/ActivityTab";
 import { TenantDrawer } from "@/pages/platform/TenantDrawer";
 import { EmptyBlock } from "@/pages/platform/ui";
 import { isAdminTab } from "@/pages/platform/tabs";
@@ -35,6 +37,8 @@ export function Platform() {
       {tab === "accounts" && <AccountsTab onOpenAccount={setOpenId} />}
       {tab === "businesses" && <BusinessesTab types={ov.byType} onOpenAccount={setOpenId} />}
       {tab === "subscriptions" && <SubscriptionsTab onOpenAccount={setOpenId} />}
+      {tab === "users" && <UsersTab canAct={isOverseer} selfEmail={session?.user.email} />}
+      {tab === "activity" && <ActivityTab onOpenAccount={setOpenId} />}
       {tab === "support" && <SupportTab />}
       {tab === "team" && <TeamTab selfEmail={session?.user.email} />}
 

@@ -27,8 +27,12 @@ export function savedReceipt(business) {
 
 /** What the till prints. `taxId` is filled only when the owner chose to show it. */
 export function receiptDesign(business, plan) {
-  if (!planAllows(plan, "receiptCustom")) return { ...RECEIPT_DEFAULTS, showTaxId: undefined, taxId: "" };
+  // The business's own address and phone print on every plan; the Pro receipt designer can override them.
+  const contact = { address: business?.settings?.address || "", phone: business?.settings?.phone || "" };
+  if (!planAllows(plan, "receiptCustom")) return { ...RECEIPT_DEFAULTS, ...contact, showTaxId: undefined, taxId: "" };
   const d = savedReceipt(business);
+  if (!d.address) d.address = contact.address;
+  if (!d.phone) d.phone = contact.phone;
   if (!planAllows(plan, "receiptTemplates")) d.template = "classic";
   const taxId = d.showTaxId ? business.taxId || "" : "";
   delete d.showTaxId;

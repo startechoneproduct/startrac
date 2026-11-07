@@ -110,6 +110,20 @@ export async function apiDownload(path: string, fallbackName = "download"): Prom
   await saveFile(res, /filename="?([^";]+)"?/i.exec(res.headers.get("content-disposition") || "")?.[1] || fallbackName);
 }
 
+/** Open a file (a receipt photo or PDF) in a new tab, fetched with the same sign-in as everything else. */
+export async function openFile(path: string): Promise<void> {
+  // Open the tab first, while the click still counts, or the browser blocks it as a pop-up.
+  const tab = window.open("", "_blank");
+  try {
+    const url = URL.createObjectURL(await (await fetchFile(path)).blob());
+    if (tab) tab.location.href = url; else window.location.href = url;
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (err) {
+    tab?.close();
+    throw err;
+  }
+}
+
 /** Download a file (CSV export, template) under exactly this name. */
 export async function downloadFile(path: string, fileName: string) {
   await saveFile(await fetchFile(path), fileName);

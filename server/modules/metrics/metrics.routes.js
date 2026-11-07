@@ -2,7 +2,7 @@ import { Router } from "express";
 import { requirePerm, requireFeature } from "#core/middleware/tenant.js";
 import {
   dayOffset, localDay, rebuildDailyMetrics,
-  buildInventoryReport, buildDashboardSummary, buildSalesReport, buildCustomersReport, buildStaffReport,
+  buildInventoryReport, buildDashboardSummary, buildSalesReport, buildCustomersReport, buildStaffReport, buildFinanceReport,
 } from "#modules/metrics/metrics.service.js";
 import { audit } from "#core/audit.js";
 
@@ -15,7 +15,7 @@ metricsRouter.get("/sales-report", requirePerm("dashboard_ops"), async (req, res
 });
 
 // GET /api/metrics/inventory-report — the Inventory tab: value, gaps, expiry
-metricsRouter.get("/inventory-report", requirePerm("dashboard_ops", "stock"), requireFeature("advancedDashboard"), async (req, res) => {
+metricsRouter.get("/inventory-report", requirePerm("inventory_view"), requireFeature("advancedDashboard"), async (req, res) => {
   res.json(await buildInventoryReport(req.ctx));
 });
 
@@ -27,6 +27,12 @@ metricsRouter.get("/customers-report", requirePerm("dashboard_ops"), requireFeat
 // GET /api/metrics/staff-report — the Staff tab (30-day window)
 metricsRouter.get("/staff-report", requirePerm("dashboard_ops"), requireFeature("advancedDashboard"), async (req, res) => {
   res.json(await buildStaffReport(req.ctx));
+});
+
+// GET /api/metrics/finance?period=today|week|month|year|custom&from=&to= — Profit & Loss.
+// Owner-level numbers (cost, margins, net profit), so it needs the profit permission.
+metricsRouter.get("/finance", requirePerm("dashboard_finance"), requireFeature("advancedDashboard"), async (req, res) => {
+  res.json(await buildFinanceReport(req.ctx, { period: String(req.query.period || "week"), from: req.query.from, to: req.query.to }));
 });
 
 // GET /api/metrics/dashboard — everything the dashboard needs in one call.

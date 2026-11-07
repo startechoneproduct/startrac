@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 export type Notification = {
   id: string;
-  type: "stock_out" | "stock_low" | "expired" | "expiry_soon" | "return_pending" | "perm_changed" | "ticket_update" | "online_order";
+  type: "stock_out" | "stock_low" | "expired" | "expiry_soon" | "return_pending" | "perm_changed" | "ticket_update" | "help_update" | "online_order";
   severity: "info" | "warning" | "critical";
   title: string;
   body: string;
@@ -30,6 +30,7 @@ const ICONS = {
   return_pending: Undo2,
   perm_changed: ShieldCheck,
   ticket_update: LifeBuoy,
+  help_update: LifeBuoy,
   online_order: ShoppingBag,
 } as const;
 
@@ -43,12 +44,14 @@ const DESTINATION: Record<Notification["type"], string> = {
   return_pending: "/app/returns",
   perm_changed: "/app/activity",
   ticket_update: "/app/tickets",
+  help_update: "/app/help",
   online_order: "/app/orders",
 };
 
 // A ticket update should open that exact ticket, not just the list.
 function destinationFor(n: Notification) {
   if (n.type === "ticket_update" && n.target?.id) return `/app/tickets?open=${n.target.id}`;
+  if (n.type === "help_update" && n.target?.id) return `/app/help?open=${n.target.id}`;
   return DESTINATION[n.type] || "/app/dashboard";
 }
 

@@ -3,11 +3,13 @@ import { connectDb } from "#core/db.js";
 import { User } from "#modules/auth/user.model.js";
 import { Account } from "#modules/auth/account.model.js";
 import { DEMOS } from "#modules/auth/demoShops.js";
+import { hashPassword } from "#modules/auth/auth.service.js";
 import { SHOWCASE_PLAN_KEYS, SHOWCASE_OWNER_PASSWORD, showcaseEmail, showcaseSubscription } from "./showcasePlans.js";
 
 /**
  * Puts each seeded showcase account back on its plan (see showcasePlans.js),
- * e.g. after its paid year has run out, and prints every login.
+ * e.g. after its paid year has run out, sets its password to
+ * SHOWCASE_OWNER_PASSWORD, and prints every login.
  *
  *   node server/scripts/assignPlans.js            apply the plans
  *   node server/scripts/assignPlans.js --dry      only show what's there
@@ -29,6 +31,8 @@ async function main() {
         account.plan = plan;
         account.subscription = showcaseSubscription(plan, days);
         await account.save();
+        user.passwordHash = await hashPassword(SHOWCASE_OWNER_PASSWORD);
+        await user.save();
       }
       rows.push({ plan, email });
     }

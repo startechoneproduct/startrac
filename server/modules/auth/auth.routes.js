@@ -5,7 +5,7 @@ import { Account } from "#modules/auth/account.model.js";
 import { Business } from "#modules/business/business.model.js";
 import { Branch } from "#modules/business/branch.model.js";
 import { Membership } from "#modules/auth/membership.model.js";
-import { hashPassword, checkPassword, signToken, permsForRole } from "#modules/auth/auth.service.js";
+import { hashPassword, checkPassword, signToken, permsForMembership } from "#modules/auth/auth.service.js";
 import { requireAuth } from "#core/middleware/requireAuth.js";
 import { rateLimit, failureGuard } from "#core/rateLimit.js";
 import { config } from "#core/config.js";
@@ -19,6 +19,8 @@ import { issueCode, consumeCode } from "#modules/auth/codes.js";
 import { emailPerson, emailOwner, realEmail, button } from "#core/ownerMail.js";
 import { esc } from "#core/mailer.js";
 import { HttpError } from "#core/httpError.js";
+import { findCurrency } from "#shared/currencies.js";
+import { LOGO_MAX_BYTES, saveLogo, sniffImage } from "#modules/business/logo.js";
 
 export const authRouter = Router();
 
@@ -32,8 +34,11 @@ const registerSchema = z.object({
   tradingName: z.string().default(""),
   taxId: z.string().default(""),
   employees: z.number().int().min(0).max(100000).default(0),
-  currency: z.string().default("₦"),
+  // A currency code ("USD") or, from older clients, its symbol ("$").
+  currency: z.string().default("NGN").refine((v) => !!findCurrency(v), "Choose a currency from the list"),
   branchName: z.string().default("Main Branch"),
+  // Optional logo, already shrunk by the app: base64 of a PNG, JPEG or WebP (under ~100 KB).
+  logo: z.string().max(140_000, "That logo is too large. Choose a smaller image.").optional(),
   // The plan to try for the first 14 days (chosen on the landing page).
   plan: z.enum(["free", "pro", "business"]).optional(),
 });
@@ -79,7 +84,7 @@ authRouter.post("/register", async (req, res) => {
         taxId: d.taxId,
         employees: d.employees,
           // The business type provisions its defaults (blueprint: type = template).
-          settings: { currency: d.currency, modules: typeTemplate(d.businessType).modules },
+          settings: { currency: findCurrency(d.currency).symbol, currencyCode: findCurrency(d.currency).code, modules: typeTemplate(d.businessType).modules },
         }],
         { session }
       );
@@ -112,6 +117,17 @@ authRouter.post("/register", async (req, res) => {
     if (created.user) await User.deleteOne({ _id: created.user._id }).catch(() => {});
     console.error("register error:", err.message);
     return res.status(500).json({ error: "server", message: "Could not create your account. Please try again." });
+  }
+
+  // The logo is a nice-to-have: a bad image never undoes the sign-up, it just isn't saved.
+  if (parsed.data.logo) {
+    try {
+      const buf = Buffer.from(parsed.data.logo.replace(/^data:[^,]*,/, ""), "base64");
+      const mime = sniffImage(buf);
+      if (mime && buf.length <= LOGO_MAX_BYTES) await saveLogo(created.business, buf, mime);
+    } catch (err) {
+      console.error("register logo:", err.message);
+    }
   }
 
   // Fire-and-forget: a code is already in the inbox by the time the UI shows
@@ -168,6 +184,7 @@ authRouter.post("/login", async (req, res) => {
   const businesses = await Business.find({ accountId: account._id });
   const branches = await Branch.find({ accountId: account._id });
 
+  User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } }).catch(() => {});
   return res.json(sessionPayload(user, account, membership, { businesses, branches }));
 });
 
@@ -349,6 +366,7 @@ authRouter.post("/till", async (req, res) => {
     ? await Branch.find({ _id: match.branchId })
     : await Branch.find({ businessId: business._id });
 
+  User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } }).catch(() => {});
   const body = sessionPayload(user, account, match, { businesses: [business], branches }, false);
   // Till sessions are short-lived by design.
   body.token = signToken(
@@ -393,7 +411,8 @@ authRouter.post("/change-pin", requireAuth, async (req, res) => {
 // GET /api/auth/me — bootstrap the app after a page refresh
 authRouter.get("/me", requireAuth, async (req, res) => {
   const user = await User.findById(req.auth.userId);
-  if (!user) return res.status(401).json({ error: "unauthorized" });
+  // A person suspended from the console is signed out on their next page load, not left holding a session.
+  if (!user || user.status !== "active") return res.status(401).json({ error: "unauthorized", message: "Please sign in again." });
   const membership = await Membership.findOne({ userId: user._id, accountId: req.auth.accountId, role: { $in: ["owner", "admin"] } })
     || await Membership.findOne({ userId: user._id, accountId: req.auth.accountId });
   const account = await Account.findById(req.auth.accountId);
@@ -440,7 +459,7 @@ function sessionPayload(user, account, membership, { businesses, branches }, wit
     plan: planSummary(account),
     demo: !!account.isSandbox,
     role: membership?.role || "staff",
-    permissions: permsForRole(membership?.role || "staff", membership?.permsOverride || []),
+    permissions: permsForMembership(membership),
     // capabilities come from the trade, not from settings — the client uses
     // them to decide which screens exist at all (see hasCapability).
     businesses: businesses.map((b) => ({

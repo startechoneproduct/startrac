@@ -11,14 +11,15 @@ export type LabelItem = { name: string; code: string; priceLabel: string };
 export type LabelKind = "barcode" | "qr";
 
 /**
- * What a product's label encodes: its own barcode if it has one, else a code
- * made from its id, so EVERY product can be labelled and scanned. The till
- * matches a scan against this same rule (see matchesProductCode).
+ * What a product's label encodes: its own barcode if it has one, else its SKU
+ * (short, so the printed barcode stays narrow enough to scan easily), else a
+ * code made from its id, so EVERY product can be labelled and scanned. The till
+ * matches all three (see matchesProductCode), so labels printed before keep working.
  */
-export const productCode = (p: { id: string; barcode?: string }) => p.barcode || `ST:${p.id}`;
-export const matchesProductCode = (p: { id: string; barcode?: string }, scanned: string) => {
+export const productCode = (p: { id: string; barcode?: string; sku?: string }) => p.barcode || p.sku || `ST:${p.id}`;
+export const matchesProductCode = (p: { id: string; barcode?: string; sku?: string }, scanned: string) => {
   const c = scanned.trim();
-  return !!c && (p.barcode === c || c === `ST:${p.id}`);
+  return !!c && (p.barcode === c || c === `ST:${p.id}` || (!!p.sku && p.sku.toLowerCase() === c.toLowerCase()));
 };
 export type LabelSize = "small" | "medium" | "large" | "sheet";
 

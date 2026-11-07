@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import {
   Search, Plus, Minus, Trash2, ShoppingCart, Banknote, CreditCard, Smartphone,
   CheckCircle2, ScanLine, Package, UserPlus, Printer, X, CloudOff, RefreshCw, Ruler,
-  Split as SplitIcon, ScanBarcode,
+  Split as SplitIcon, ScanBarcode, Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Card";
@@ -18,13 +18,14 @@ import { outboxEnqueue, outboxFlush, outboxList, outboxDiscard, type QueuedSale 
 import { onOutboxSynced } from "@/lib/outboxDb";
 import { fmtMoney } from "@/lib/format";
 import { matchesProductCode } from "@/lib/barcodes";
+import { fuzzySearch } from "@/lib/fuzzy";
 import { WhatsAppReceipt } from "@/components/receipt/WhatsAppReceipt";
 import { QrScanModal } from "@/components/loyalty/QrScanModal";
 import { QrCode } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Product = {
-  id: string; name: string; price: number; category: string; stock: number | null; barcode: string;
+  id: string; name: string; price: number; category: string; stock: number | null; barcode: string; sku?: string;
   archetype?: string; tracksSerials?: boolean; imageUrl?: string;
   bom?: { productId: string; per: string; factor: number }[];
 };
@@ -41,13 +42,18 @@ type Line = {
 };
 type Receipt = ReceiptData;
 
-type Method = "cash" | "pos" | "transfer";
+type Method = "cash" | "pos" | "transfer" | "store_credit";
 
 const PAY_METHODS = [
   { k: "cash", label: "Cash", icon: Banknote },
   { k: "pos", label: "POS", icon: CreditCard },
   { k: "transfer", label: "Transfer", icon: Smartphone },
 ] as const;
+// Store credit isn't a button of its own: it is applied from the customer's balance (see "Use store credit").
+const METHOD_META: Record<Method, { label: string; icon: typeof Banknote }> = {
+  cash: { label: "Cash", icon: Banknote }, pos: { label: "POS", icon: CreditCard }, transfer: { label: "Transfer", icon: Smartphone },
+  store_credit: { label: "Credit", icon: Wallet },
+};
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -87,7 +93,7 @@ export function POS() {
   const [splits, setSplits] = useState<{ method: Method; amount: number }[]>([]);
   const [tendered, setTendered] = useState<number | "">("");
   const [discount, setDiscount] = useState(0);
-  const [customer, setCustomer] = useState<{ id?: string; name: string; phone: string } | null>(null);
+  const [customer, setCustomer] = useState<{ id?: string; name: string; phone: string; storeCredit?: number } | null>(null);
   const [customerOpen, setCustomerOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [scanProductOpen, setScanProductOpen] = useState(false);
@@ -137,15 +143,16 @@ export function POS() {
   const cats = useMemo(() => ["All", ...Array.from(new Set(products.map((p) => p.category))).sort()], [products]);
   const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
-  const filtered = useMemo(
-    () =>
-      products.filter(
-        (p) =>
-          (cat === "All" || p.category === cat) &&
-          (p.name.toLowerCase().includes(q.toLowerCase()) || matchesProductCode(p, q))
-      ),
-    [products, cat, q]
-  );
+  // Forgiving search (see lib/fuzzy.ts): typos, missing spaces and partial
+  // codes still find the product, best match first. A scanned code that
+  // matches exactly always comes first.
+  const filtered = useMemo(() => {
+    const inCat = products.filter((p) => cat === "All" || p.category === cat);
+    if (!q.trim()) return inCat;
+    const exact = inCat.filter((p) => matchesProductCode(p, q));
+    const rest = fuzzySearch(inCat.filter((p) => !exact.includes(p)), q, (p) => [p.name, p.sku, p.barcode, p.category]);
+    return [...exact, ...rest];
+  }, [products, cat, q]);
 
   // Barcode scanners are keyboards: exact barcode match + Enter adds instantly.
   function onSearchKey(e: React.KeyboardEvent) {
@@ -160,7 +167,18 @@ export function POS() {
     }
   }
 
-  // Camera scan of a product's QR label (or barcode): straight into the basket.
+  // What a scanned or typed code refers to, shown in the scanner before it goes in the basket.
+  function findScanned(code: string) {
+    const hit = products.find((p) => matchesProductCode(p, code));
+    if (!hit) return null;
+    // How many more can go in: what's on the shelf less what's already in the basket.
+    const available = isMto(hit) ? null : Math.max(0, (hit.stock ?? 0) - inCart(hit.id));
+    const inBasket = inCart(hit.id);
+    const left = available === null ? "" : available <= 0 ? " · none left to sell" : ` · ${available} left${inBasket ? ` (${inBasket} already in this sale)` : ""}`;
+    return { title: hit.name, subtitle: `${fmtMoney(hit.price, currency)} each${left}`, imageUrl: hit.imageUrl };
+  }
+
+  // A scanned or typed product, confirmed in the scanner: into the basket (change how many in the cart).
   function onScanProduct(code: string) {
     setScanProductOpen(false);
     const hit = products.find((p) => matchesProductCode(p, code));
@@ -284,6 +302,19 @@ export function POS() {
     setSplits((s) => s.map((p, idx) => (idx === i ? { ...p, amount: Math.max(0, round2(amount)) } : p)));
 
   const resetPayment = () => { setSplits([]); setTendered(""); };
+
+  // Credit applied can never be more than the sale, even if items come off after.
+  useEffect(() => {
+    setSplits((s) => (s.some((x) => x.method === "store_credit" && x.amount > total) ? s.map((x) => (x.method === "store_credit" ? { ...x, amount: round2(Math.max(0, total)) } : x)).filter((x) => x.amount > 0) : s));
+  }, [total]);
+
+  // Pays what it can from the customer's store credit; anything left stays on the chosen method.
+  function applyStoreCredit() {
+    const credit = customer?.storeCredit || 0;
+    const amount = round2(Math.min(credit, total));
+    if (amount <= 0) return;
+    setSplits((s) => [{ method: "store_credit", amount }, ...s.filter((x) => x.method !== "store_credit")]);
+  }
 
   async function checkout() {
     if (!cart.length || busy) return;
@@ -566,7 +597,8 @@ export function POS() {
               <UserPlus className="w-3.5 h-3.5 text-primary shrink-0" />
               <span className="font-semibold text-t1 truncate">{customer.name}</span>
               {customer.phone && <span className="text-t3">{customer.phone}</span>}
-              <button onClick={() => { setCustomer(null); setCardMsg(""); }} className="ml-auto text-t4 hover:text-danger"><X className="w-3.5 h-3.5" /></button>
+              {!!customer.storeCredit && <span className="text-success font-semibold whitespace-nowrap">{fmtMoney(customer.storeCredit, currency)} credit</span>}
+              <button onClick={() => { setCustomer(null); setCardMsg(""); setSplits((s) => s.filter((x) => x.method !== "store_credit")); }} className="ml-auto text-t4 hover:text-danger" aria-label="Remove customer"><X className="w-3.5 h-3.5" /></button>
             </div>
           ) : (
             <div className="flex items-center gap-2">
@@ -586,7 +618,7 @@ export function POS() {
           <div className="space-y-2">
             {/* locked-in split rows */}
             {splits.map((s, i) => {
-              const M = PAY_METHODS.find((m) => m.k === s.method)!;
+              const M = METHOD_META[s.method];
               return (
                 <div key={`${s.method}-${i}`} className="flex items-center gap-2 px-2.5 h-10 rounded-ctl bg-primary-softer border border-line">
                   <M.icon className="w-3.5 h-3.5 text-primary shrink-0" />
@@ -603,6 +635,12 @@ export function POS() {
                 </div>
               );
             })}
+
+            {!!customer?.id && (customer.storeCredit || 0) > 0 && cart.length > 0 && !splits.some((s) => s.method === "store_credit") && (
+              <button onClick={applyStoreCredit} className="w-full flex items-center gap-2 px-3 h-10 rounded-ctl border border-success/40 bg-success-soft text-[12px] font-semibold text-success hover:brightness-95">
+                <Wallet className="w-4 h-4" /> Use store credit · {fmtMoney(Math.min(customer.storeCredit || 0, total), currency)} of {fmtMoney(customer.storeCredit || 0, currency)}
+              </button>
+            )}
 
             <div className="grid grid-cols-3 gap-2">
               {PAY_METHODS.map(({ k, label, icon: Icon }) => {
@@ -754,9 +792,9 @@ export function POS() {
       />
 
       {/* customer modal */}
-      <CustomerQuickAdd open={customerOpen} onClose={() => setCustomerOpen(false)} onPick={(c) => { setCustomer(c); setCustomerOpen(false); }} />
+      <CustomerQuickAdd open={customerOpen} onClose={() => setCustomerOpen(false)} onPick={(c) => { setCustomer(c); setCustomerOpen(false); }} currency={currency} />
       <QrScanModal open={scanOpen} onClose={() => setScanOpen(false)} onCode={onScanCode} />
-      <QrScanModal open={scanProductOpen} onClose={() => setScanProductOpen(false)} onCode={onScanProduct} title="Scan a product" />
+      <QrScanModal open={scanProductOpen} onClose={() => setScanProductOpen(false)} onCode={onScanProduct} kind="product" lookup={findScanned} />
 
       {/* receipt modal */}
       <ReceiptModal receipt={receipt} onClose={() => setReceipt(null)} />
@@ -871,9 +909,23 @@ function SerialPickerModal({ line, onClose, onSave }: {
   );
 }
 
-function CustomerQuickAdd({ open, onClose, onPick }: { open: boolean; onClose: () => void; onPick: (c: { name: string; phone: string }) => void }) {
+type PickedCustomer = { id?: string; name: string; phone: string; storeCredit?: number };
+function CustomerQuickAdd({ open, onClose, onPick, currency }: { open: boolean; onClose: () => void; onPick: (c: PickedCustomer) => void; currency: string }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [found, setFound] = useState<{ id: string; name: string; phone: string; storeCredit: number }[]>([]);
+  // Existing customers matching what's typed, so their history (and any store credit) carries on.
+  useEffect(() => {
+    const q = (name || phone).trim();
+    if (!open || q.length < 2) { setFound([]); return; }
+    let stale = false;
+    const t = setTimeout(() => {
+      api<{ customers: { id: string; name: string; phone: string; storeCredit: number }[] }>(`/customers?q=${encodeURIComponent(q)}`)
+        .then((r) => { if (!stale) setFound(r.customers.slice(0, 5)); })
+        .catch(() => { if (!stale) setFound([]); });
+    }, 250);
+    return () => { stale = true; clearTimeout(t); };
+  }, [name, phone, open]);
   return (
     <Modal open={open} onClose={onClose} title="Attach a customer" subtitle="Builds their purchase history and spend automatically">
       <form
@@ -888,7 +940,20 @@ function CustomerQuickAdd({ open, onClose, onPick }: { open: boolean; onClose: (
       >
         <Input autoFocus placeholder="Customer name" value={name} onChange={(e) => setName(e.target.value)} required />
         <Input placeholder="Phone / WhatsApp (optional)" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        <Button type="submit" className="w-full">Attach to sale</Button>
+        {found.length > 0 && (
+          <div className="rounded-ctl border border-line divide-y divide-line">
+            <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-t3">Existing customers</div>
+            {found.map((c) => (
+              <button key={c.id} type="button" onClick={() => { onPick({ id: c.id, name: c.name, phone: c.phone, storeCredit: c.storeCredit }); setName(""); setPhone(""); }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-left text-[12.5px] hover:bg-surface-2">
+                <span className="font-semibold text-t1 truncate">{c.name}</span>
+                {c.phone && <span className="text-t3">{c.phone}</span>}
+                {c.storeCredit > 0 && <span className="ml-auto text-success font-semibold whitespace-nowrap">{fmtMoney(c.storeCredit, currency)} credit</span>}
+              </button>
+            ))}
+          </div>
+        )}
+        <Button type="submit" className="w-full">Attach as a new customer</Button>
       </form>
     </Modal>
   );

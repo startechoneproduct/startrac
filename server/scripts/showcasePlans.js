@@ -6,7 +6,7 @@
  * Used by seedShowcase.js (accounts get their plan at creation) and by
  * assignPlans.js (existing accounts are moved onto their plan).
  */
-export const SHOWCASE_OWNER_PASSWORD = "Demo@1234";
+export const SHOWCASE_OWNER_PASSWORD = "demo12";
 
 /** The plans each trade is seeded on, in the order they are listed. */
 export const SHOWCASE_PLAN_KEYS = ["free", "pro", "business"];

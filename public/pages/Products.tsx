@@ -109,14 +109,10 @@ export function Products() {
           <>
             <Button variant="secondary" onClick={() => (hasFeature("barcodes") ? setLabeling(true) : requestUpgrade("barcodes"))} disabled={hasFeature("barcodes") && !products.length}><Barcode className="w-4 h-4" /> Labels <LockChip feature="barcodes" /></Button>
             <Button variant="secondary" onClick={() => setPrinting(true)} disabled={!products.length}><Printer className="w-4 h-4" /> Print</Button>
-            {can("prices") && (
-              <>
-                <Button variant="secondary" onClick={() => (hasFeature("productPhotos") ? setFindingPhotos(true) : requestUpgrade("productPhotos"))} disabled={hasFeature("productPhotos") && !products.some((p) => !p.imageUrl)}><ImageIcon className="w-4 h-4" /> Find photos <LockChip feature="productPhotos" /></Button>
-                <Button variant="secondary" onClick={() => (hasFeature("csvImport") ? setImporting(true) : requestUpgrade("csvImport"))}><Upload className="w-4 h-4" /> Import CSV <LockChip feature="csvImport" /></Button>
-                <Button variant="secondary" onClick={() => setClearing(true)} disabled={!products.length} className="hover:!text-danger hover:!border-danger/50 hover:!bg-danger-soft"><Trash2 className="w-4 h-4" /> Delete all</Button>
-                <Button onClick={() => setEditing("new")}><Plus className="w-4 h-4" /> Add product</Button>
-              </>
-            )}
+            {can("products_edit") && <Button variant="secondary" onClick={() => (hasFeature("productPhotos") ? setFindingPhotos(true) : requestUpgrade("productPhotos"))} disabled={hasFeature("productPhotos") && !products.some((p) => !p.imageUrl)}><ImageIcon className="w-4 h-4" /> Find photos <LockChip feature="productPhotos" /></Button>}
+            {can("products_add") && <Button variant="secondary" onClick={() => (hasFeature("csvImport") ? setImporting(true) : requestUpgrade("csvImport"))}><Upload className="w-4 h-4" /> Import CSV <LockChip feature="csvImport" /></Button>}
+            {can("products_delete") && <Button variant="secondary" onClick={() => setClearing(true)} disabled={!products.length} className="hover:!text-danger hover:!border-danger/50 hover:!bg-danger-soft"><Trash2 className="w-4 h-4" /> Delete all</Button>}
+            {can("products_add") && <Button onClick={() => setEditing("new")}><Plus className="w-4 h-4" /> Add product</Button>}
           </>
         }
       />
@@ -130,7 +126,7 @@ export function Products() {
         </div>
       )}
 
-      {can("stock") && hasFeature("ai") && <RestockSuggestionsPanel />}
+      {can("stock_in") && hasFeature("ai") && <RestockSuggestionsPanel />}
 
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <div className="relative flex-1 min-w-[220px] max-w-sm">
@@ -157,7 +153,7 @@ export function Products() {
             icon={Package}
             title="No products yet"
             body="Your catalog is empty. Add your first product and it appears on the POS instantly."
-            action={can("prices") && <Button onClick={() => setEditing("new")}><Plus className="w-4 h-4" /> Add your first product</Button>}
+            action={can("products_add") && <Button onClick={() => setEditing("new")}><Plus className="w-4 h-4" /> Add your first product</Button>}
           />
         </Card>
       ) : (
@@ -206,14 +202,18 @@ export function Products() {
                         )}
                       </TD>
                       <TD className="text-right whitespace-nowrap">
-                        {can("prices") && (
+                        {(can("products_edit") || can("products_delete")) && (
                           <div className="inline-flex opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => setEditing(p)} className="p-1.5 rounded-lg text-t3 hover:text-primary hover:bg-primary-soft transition-colors" title="Edit">
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => archive(p)} className="p-1.5 rounded-lg text-t3 hover:text-danger hover:bg-danger-soft transition-colors" title="Archive">
-                              <Archive className="w-4 h-4" />
-                            </button>
+                            {can("products_edit") && (
+                              <button onClick={() => setEditing(p)} className="p-1.5 rounded-lg text-t3 hover:text-primary hover:bg-primary-soft transition-colors" title="Edit">
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                            )}
+                            {can("products_delete") && (
+                              <button onClick={() => archive(p)} className="p-1.5 rounded-lg text-t3 hover:text-danger hover:bg-danger-soft transition-colors" title="Archive">
+                                <Archive className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         )}
                       </TD>
@@ -231,7 +231,7 @@ export function Products() {
       <ProductModal
         key={editing === "new" ? "new" : (editing?.id ?? "closed")}
         editing={editing}
-        showCost={can("prices")}
+        showCost={can("products_add") || can("products_edit")}
         showExpiry={hasModule("expiry") && hasFeature("expiry")}
         mtoAllowed={hasModule("made_to_order")}
         serialsAllowed={hasCapability("serials")}
