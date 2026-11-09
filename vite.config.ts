@@ -44,6 +44,10 @@ export default defineConfig(({ mode }) => {
           // The app shell only — API responses are handled by sw.js's own
           // runtime-caching routes, not precached.
           globPatterns: ["**/*.{js,css,html,svg}"],
+          // The main bundle is ~2.35 MB, over Workbox's 2 MiB default, which
+          // fails the build. Raise the cap so the shell is still precached
+          // (needed for offline use).
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         },
         // SW support in `vite dev` has real quirks and isn't how a PWA is
         // normally verified anyway — test this with a production build
