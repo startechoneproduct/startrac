@@ -17,6 +17,8 @@ const ACTION_META: Record<string, { label: string; icon: any; tone: "brand" | "s
   "product.price_change": { label: "Price changed", icon: Tag, tone: "warning" },
   "product.archive": { label: "Product archived", icon: Boxes, tone: "neutral" },
   "sale.void": { label: "Sale voided", icon: Ban, tone: "danger" },
+  "sale.undo_request": { label: "Asked to undo a sale", icon: Ban, tone: "warning" },
+  "sale.undo_reject": { label: "Undo request turned down", icon: Ban, tone: "neutral" },
   "return.approve": { label: "Return approved", icon: Undo2, tone: "brand" },
   "return.reject": { label: "Return rejected", icon: Undo2, tone: "danger" },
   "staff.create": { label: "Staff added", icon: UserCog, tone: "success" },
@@ -49,6 +51,8 @@ function describe(e: Entry): string {
     return bits.join(", ");
   }
   if (e.action === "sale.void") return e.after?.reason ? `"${e.after.reason}"` : "";
+  if (e.action === "sale.undo_request") return e.after?.reason ? `"${e.after.reason}"` : "";
+  if (e.action === "sale.undo_reject") return e.after?.note ? `"${e.after.note}"` : "";
   if (e.action === "staff.update" && e.before && e.after) {
     const bits = [];
     if (e.before.role !== e.after.role) bits.push(`role ${e.before.role} → ${e.after.role}`);

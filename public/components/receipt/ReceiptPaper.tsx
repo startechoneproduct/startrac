@@ -157,6 +157,11 @@ export function ReceiptPaper({ receipt: r, design: d = r.design || DEFAULT_DESIG
       </div>
 
       {r.footer && <div className={cn("px-4 py-3 text-center opacity-75", rule)}>{r.footer}</div>}
+
+      {/* A quiet credit line on every receipt, on every plan. */}
+      <div className={cn("px-4 pt-1.5 pb-3 text-center opacity-50 tracking-wide", !r.footer && rule, !r.footer && "pt-2.5")} style={{ fontSize: Math.max(8, base * 0.72) }}>
+        Powered by StarTrack
+      </div>
     </div>
   );
 }

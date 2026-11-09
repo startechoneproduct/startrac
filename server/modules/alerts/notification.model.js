@@ -24,7 +24,7 @@ const notificationSchema = new mongoose.Schema(
     type: {
       type: String,
       required: true,
-      enum: ["stock_out", "stock_low", "expired", "expiry_soon", "return_pending", "perm_changed", "ticket_update", "help_update", "membership_expiring", "online_order"],
+      enum: ["stock_out", "stock_low", "expired", "expiry_soon", "return_pending", "undo_pending", "perm_changed", "ticket_update", "help_update", "membership_expiring", "online_order"],
     },
     severity: { type: String, enum: ["info", "warning", "critical"], default: "info" },
 

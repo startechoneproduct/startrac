@@ -77,6 +77,7 @@ export const keys = {
   expiry: (branchId, productId, expiryISO, threshold) => `expiry:${branchId}:${productId}:${expiryISO}:${threshold}`,
   expiryPrefix: (branchId, productId) => `expiry:${branchId}:${productId}:`,
   returnPending: (returnId) => `return:${returnId}`,
+  undoPending: (saleId) => `undo:${saleId}`,
   permChanged: (userId, stamp) => `perm:${userId}:${stamp}`,
   // A comment/assignment is discrete news, not a resuming condition — the
   // stamp keeps every one its own dedupeKey instead of collapsing into one
