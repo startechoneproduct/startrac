@@ -86,6 +86,19 @@ const saleSchema = new mongoose.Schema(
       reason: { type: String },
       at: { type: Date },
     },
+    // A salesperson asking to undo their own sale straight after recording it.
+    // Pending until someone who can void approves; approval voids the sale.
+    undoRequest: {
+      status: { type: String, enum: ["pending", "approved", "rejected"] },
+      by: { type: mongoose.Schema.Types.ObjectId },
+      byName: { type: String },
+      reason: { type: String },
+      at: { type: Date },
+      decidedBy: { type: mongoose.Schema.Types.ObjectId },
+      decidedByName: { type: String },
+      decidedAt: { type: Date },
+      note: { type: String },
+    },
     clientSaleId: { type: String }, // offline-queue idempotency key
     // Set only on payments taken by a service business (academy fees, salon
     // appointments, agency project payments — see server/modules/services/).
@@ -104,6 +117,7 @@ saleSchema.index({ businessId: 1, branchId: 1, at: -1 });
 saleSchema.index({ businessId: 1, saleNo: 1 });
 saleSchema.index({ businessId: 1, customerId: 1, at: -1 });
 saleSchema.index({ businessId: 1, staffId: 1, at: -1 });
+saleSchema.index({ businessId: 1, "undoRequest.status": 1 }, { sparse: true });
 saleSchema.index({ businessId: 1, channel: 1, at: -1 });
 saleSchema.index({ importBatchId: 1 }, { sparse: true });
 saleSchema.index(

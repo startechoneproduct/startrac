@@ -11,7 +11,7 @@ import { useSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
 type Settings = {
-  business: { name: string; taxId?: string; settings: { receiptFooter: string; currency: string; receipt: Omit<ReceiptDesign, "taxId"> & { showTaxId: boolean } } };
+  business: { name: string; taxId?: string; logoUrl?: string; settings: { receiptFooter: string; currency: string; receipt: Omit<ReceiptDesign, "taxId"> & { showTaxId: boolean } } };
 };
 type Draft = Omit<ReceiptDesign, "taxId"> & { showTaxId: boolean; footer: string };
 
@@ -44,6 +44,7 @@ export function ReceiptDesigner() {
   const [taxId, setTaxId] = useState("");
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState("₦");
+  const [logoUrl, setLogoUrl] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [drafting, setDrafting] = useState(false);
@@ -56,7 +57,7 @@ export function ReceiptDesigner() {
     api<Settings>("/settings").then((s) => {
       const r = s.business.settings.receipt;
       const d: Draft = { ...r, footer: s.business.settings.receiptFooter };
-      setDraft(d); setSaved(d); setTaxId(s.business.taxId || ""); setName(s.business.name); setCurrency(s.business.settings.currency);
+      setDraft(d); setSaved(d); setTaxId(s.business.taxId || ""); setName(s.business.name); setCurrency(s.business.settings.currency); setLogoUrl(s.business.logoUrl || "");
     }).catch((e) => setError(e?.message || "Couldn't load your receipt settings."));
   }, [activeBusiness?.id]);
 
@@ -66,8 +67,10 @@ export function ReceiptDesigner() {
   const preview = useMemo(() => {
     if (!draft) return null;
     const { footer, showTaxId, ...design } = draft;
-    return { ...SAMPLE_RECEIPT, businessName: name, currency, footer, design: { ...design, taxId: showTaxId ? taxId : "" } as ReceiptDesign };
-  }, [draft, name, currency, taxId]);
+    // The logo shows here only where it will really print: on the Business plan.
+    const logo = hasFeature("receiptLogo") ? logoUrl : "";
+    return { ...SAMPLE_RECEIPT, businessName: name, currency, footer, logoUrl: logo, design: { ...design, taxId: showTaxId ? taxId : "" } as ReceiptDesign };
+  }, [draft, name, currency, taxId, logoUrl, hasFeature]);
 
   async function save() {
     if (!draft) return;

@@ -334,10 +334,10 @@ function ShiftsCard({ shifts, onChanged }: { shifts: ShiftRow[]; onChanged: () =
         <Field label="Shift name" className="flex-1 min-w-[140px]">
           <Input required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Morning" />
         </Field>
-        <Field label="Starts" className="w-28">
+        <Field label="Starts" className="w-[150px]">
           <Input required type="time" value={form.start} onChange={(e) => setForm((f) => ({ ...f, start: e.target.value }))} />
         </Field>
-        <Field label="Ends" className="w-28">
+        <Field label="Ends" className="w-[150px]">
           <Input required type="time" value={form.end} onChange={(e) => setForm((f) => ({ ...f, end: e.target.value }))} />
         </Field>
         <Button type="submit" disabled={busy}><Plus className="w-4 h-4" /> Add shift</Button>
