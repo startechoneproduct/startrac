@@ -14,6 +14,7 @@ import { api } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
 import { businessLogoUrl } from "@/lib/logo";
+import { CurrencySwitcher } from "@/components/layout/CurrencySwitcher";
 
 // Staff change their own till PIN — requires the current one when set.
 function ChangePinModal({ open, onClose, businessId }: { open: boolean; onClose: () => void; businessId: string }) {
@@ -149,6 +150,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
             <Plus className="w-4 h-4" /> <span className="max-sm:hidden">New sale</span>
           </Link>
         )}
+        <CurrencySwitcher />
         {/* Very narrow phones: the refresh button gives way so the bar never overflows. */}
         <span className="contents max-[359px]:hidden"><RefreshButton /></span>
         <span data-tour="topbar-notifications" className="flex">

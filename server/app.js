@@ -39,6 +39,7 @@ import { aiRouter } from "#modules/ai/ai.routes.js";
 import { searchRouter } from "#modules/search/search.routes.js";
 import { overviewRouter } from "#modules/overview/overview.routes.js";
 import { reportsRouter } from "#modules/reports/reports.routes.js";
+import { ratesRouter } from "#modules/rates/rates.routes.js";
 
 // Business-vertical modules (server/modules/businesses/*/) — genuinely
 // single-consumer logic that lives in its own directory. Blinds has none:
@@ -122,6 +123,8 @@ app.use("/api/billing", requireAuth, requireLive, requireOwner, billingRouter);
 // Business-data routes: auth → tenant context → module
 const tenant = [requireAuth, tenantContext];
 // Spans every business of the account, so it resolves access itself (no tenantContext).
+// Live exchange rates for the display-currency switcher (same for every business).
+app.use("/api/rates", requireAuth, ratesRouter);
 app.use("/api/overview", requireAuth, requireLive, overviewRouter);
 app.use("/api/staff", tenant, staffRouter);
 app.use("/api/products", tenant, productsRouter);

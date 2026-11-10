@@ -1,4 +1,14 @@
-export function fmtMoney(n: number, currency = "₦") {
+import { convertFromSymbol } from "./rates";
+
+/**
+ * Money as text. `currency` is the symbol the amount is STORED in. If the
+ * person is viewing in another currency, the amount is converted at the live
+ * rate; pass `convert = false` for documents that must keep the real
+ * currency (receipts, invoices).
+ */
+export function fmtMoney(n: number, currency = "₦", convert = true) {
+  const c = convert ? convertFromSymbol(n, currency) : null;
+  if (c) { n = c.value; currency = c.symbol; }
   const sign = n < 0 ? "−" : "";
   // A symbol that ends in a letter ("KSh", "CFA", "AED") reads better with a space before the number.
   const gap = /[A-Za-z]$/.test(currency) ? " " : "";

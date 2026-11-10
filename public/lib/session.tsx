@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { api, ApiError, getToken, setToken, setTenant } from "./api";
+import { useRates, useRatePolling } from "./rates";
 import { planAllows, PLANS, type PlanKey } from "#shared/plans.js";
 
 export type Business = {
@@ -96,6 +97,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
   const [activeBranchId, setActiveBranchId] = useState<string | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
+  // Amounts are converted to the chosen display currency inside fmtMoney, so
+  // every consumer must re-render when the rates (or the choice) change.
+  const rates = useRates();
+  useRatePolling(!!session && !!rates.display);
 
   // Bootstrap from a stored token on first load. A reload keeps the business and
   // branch you were in (several screens reload to re-read the session); a fresh
@@ -212,7 +217,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       plan: planOf(session),
       hasFeature: (feature) => planAllows(planOf(session).key, feature),
     };
-  }, [session, loading, activeBusinessId, activeBranchId, dataVersion]);
+  }, [session, loading, activeBusinessId, activeBranchId, dataVersion, rates]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

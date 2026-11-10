@@ -41,7 +41,7 @@ export function Invoices() {
   const [editing, setEditing] = useState<{ id: string | null; seed?: Inv } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tick, setTick] = useState(0);
-  const money = (n: number) => fmtMoney(n, currency);
+  const money = (n: number) => fmtMoney(n, currency, false);
 
   const { data, loading } = useApi<{ invoices: Inv[]; summary: Summary; page: number; pages: number; total: number }>(
     `/invoices?status=${view}&limit=${PER}&page=${page}${q ? `&q=${encodeURIComponent(q)}` : ""}`, [tick]

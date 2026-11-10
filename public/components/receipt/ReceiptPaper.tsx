@@ -54,7 +54,7 @@ function Row({ left, right, strong, muted, mono = true }: { left: React.ReactNod
  * preview), so the two can never disagree.
  */
 export function ReceiptPaper({ receipt: r, design: d = r.design || DEFAULT_DESIGN }: { receipt: ReceiptData; design?: ReceiptDesign }) {
-  const m = (n: number) => fmtMoney(n, r.currency);
+  const m = (n: number) => fmtMoney(n, r.currency, false);
   const base = SIZE[d.textSize];
   const t = d.template;
   const contact = [d.address, d.phone].filter(Boolean);

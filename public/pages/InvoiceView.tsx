@@ -40,7 +40,7 @@ export function InvoiceView() {
   if (!v) return <div className="min-h-screen grid place-items-center bg-surface-2"><div className="w-6 h-6 rounded-full border-2 border-line border-t-primary animate-spin" /></div>;
 
   const { invoice: i, business: b, bank } = v;
-  const money = (n: number) => fmtMoney(n, b.currency);
+  const money = (n: number) => fmtMoney(n, b.currency, false);
   const accent = /^#[0-9a-f]{6}$/i.test(b.accent) ? b.accent : "#3538f0";
   const [stampText, stampColor] = STAMP[i.displayStatus] || STAMP.issued;
   const owing = i.status !== "void" && i.balance > 0;
