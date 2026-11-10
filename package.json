@@ -21,6 +21,7 @@
     "start": "node server/index.js",
     "seed:showcase": "node server/scripts/seedShowcase.js",
     "seed:showcase:reset": "node server/scripts/seedShowcase.js --reset",
+    "seed:empty": "node server/scripts/seedEmptyTest.js",
     "seed:plans": "node server/scripts/assignPlans.js",
     "seed:admin": "node server/scripts/seedSuperAdmin.js",
     "e2e": "playwright test -c e2e/playwright.config.ts",
