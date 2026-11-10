@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { VoidSaleModal } from "@/components/sales/VoidSaleModal";
+import { UndoRequests } from "@/components/sales/UndoRequests";
 import { WhatsAppReceipt } from "@/components/receipt/WhatsAppReceipt";
 import { ReceiptText, Download, Search, Ban } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -27,6 +28,7 @@ type Sale = {
   status: string;
   channel?: "pos" | "online" | "import" | "invoice"; orderNo?: string | null; deliveryFee?: number;
   voidInfo?: { byName?: string; reason?: string; at?: string };
+  undoRequest?: { status: "pending" | "approved" | "rejected"; byName: string; reason: string };
 };
 type Totals = {
   count: number; completed: number; voided: number;
@@ -121,6 +123,7 @@ export function SalesHistoryView() {
 
   return (
     <div>
+      {can("void_sales") && <UndoRequests currency={currency} branchKey={activeBranch?.id} onDecided={reload} />}
       {/* Filters */}
       {batch && (
         <div className="mb-3 flex items-center gap-3 flex-wrap rounded-xl bg-primary-soft text-primary px-4 py-2.5 text-[13px] font-semibold" data-testid="batch-banner">
@@ -217,7 +220,7 @@ export function SalesHistoryView() {
                       </Badge>
                     </TD>
                     <TD>
-                      {s.status === "voided" ? <Badge tone="danger">voided</Badge> : <Badge tone="success">completed</Badge>}
+                      {s.status === "voided" ? <Badge tone="danger">voided</Badge> : s.undoRequest?.status === "pending" ? <Badge tone="warning">undo asked</Badge> : <Badge tone="success">completed</Badge>}
                     </TD>
                     <TD className="text-right font-mono font-semibold tabular-nums">{fmtMoney(s.total, currency)}</TD>
                   </TR>

@@ -20,6 +20,7 @@ import { fmtMoney } from "@/lib/format";
 import { matchesProductCode } from "@/lib/barcodes";
 import { fuzzySearch } from "@/lib/fuzzy";
 import { WhatsAppReceipt } from "@/components/receipt/WhatsAppReceipt";
+import { UndoLastSale } from "@/components/sales/UndoLastSale";
 import { QrScanModal } from "@/components/loyalty/QrScanModal";
 import { QrCode } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -777,6 +778,7 @@ export function POS() {
             <CheckCircle2 className="w-5 h-5" />
             {busy ? "Processing…" : `Complete Sale · ${fmtMoney(total, currency)}`}
           </Button>
+          <UndoLastSale refresh={receipt?.saleId} currency={currency} onUndone={reload} />
         </div>
       </aside>
 

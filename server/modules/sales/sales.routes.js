@@ -12,8 +12,8 @@ import { bumpDailyMetric, localDay } from "#modules/metrics/metrics.service.js";
 import { money } from "#core/money.js";
 import { audit } from "#core/audit.js";
 import { withTransaction } from "#core/tx.js";
-import { conflict, notFound } from "#core/httpError.js";
-import { afterStockChange } from "#modules/alerts/alerts.service.js";
+import { HttpError, conflict, notFound } from "#core/httpError.js";
+import { afterStockChange, raiseUndoPending, resolveUndoPending } from "#modules/alerts/alerts.service.js";
 import { runCheckout } from "#modules/sales/checkout.service.js";
 import { Order } from "#modules/storefront/order.model.js";
 import { escapeRegex } from "#core/regex.js";
@@ -51,6 +51,7 @@ function shapeSale(s, showCost) {
     change: s.change || 0,
     status: s.status,
     voidInfo: s.status === "voided" ? { byName: s.voidInfo?.byName, reason: s.voidInfo?.reason, at: s.voidInfo?.at } : undefined,
+    undoRequest: s.undoRequest?.status ? { status: s.undoRequest.status, byName: s.undoRequest.byName, reason: s.undoRequest.reason, at: s.undoRequest.at, decidedByName: s.undoRequest.decidedByName, note: s.undoRequest.note } : undefined,
   };
 }
 
@@ -259,9 +260,20 @@ salesRouter.get("/:id/receipt", requirePerm("sales", "sales_view"), async (req, 
 salesRouter.post("/:id/void", requirePerm("void_sales"), async (req, res) => {
   const reason = String(req.body?.reason || "").trim();
   if (reason.length < 3) return res.status(400).json({ error: "invalid", message: "Give a reason for voiding this sale." });
+  const sale = await voidSale(req.ctx, req.params.id, reason);
+  if (sale.undoRequest?.status === "pending") resolveUndoPending(req.ctx.businessId, sale._id);
+  res.json({ sale: shapeSale(sale, canSeeCost(req.ctx)) });
+});
 
+/**
+ * Cancels a completed sale: stock goes back, money and customer totals are
+ * reversed, and the sale stays on record flagged "voided". `onVoid` runs
+ * inside the same transaction, just before the sale is saved, so a caller can
+ * stamp extra fields (the undo decision) atomically with the void.
+ */
+async function voidSale(ctx, saleId, reason, onVoid) {
   const sale = await withTransaction(async (session) => {
-    const sale = await Sale.findOne({ _id: req.params.id, businessId: req.ctx.businessId }).session(session);
+    const sale = await Sale.findOne({ _id: saleId, businessId: ctx.businessId }).session(session);
     if (!sale) throw notFound("Sale not found.");
     if (sale.status === "voided") throw conflict("This sale is already voided.", "already_voided");
     if (sale.service?.kind) {
@@ -282,14 +294,14 @@ salesRouter.post("/:id/void", requirePerm("void_sales"), async (req, res) => {
       if (line.components?.length) {
         // Made-to-order: the components come back, not the custom item.
         for (const c of line.components) {
-          await applyMovement(req.ctx, {
+          await applyMovement(ctx, {
             branchId: sale.branchId, productId: c.productId, productName: c.name,
             type: "VOID_RESTOCK", qty: c.qty, refType: "sale", refId: sale._id,
             reason: `Void ${sale.saleNo} (${line.name})`, session,
           });
         }
       } else {
-        await applyMovement(req.ctx, {
+        await applyMovement(ctx, {
           branchId: sale.branchId,
           productId: line.productId,
           productName: line.name,
@@ -303,15 +315,16 @@ salesRouter.post("/:id/void", requirePerm("void_sales"), async (req, res) => {
       }
     }
 
+    onVoid?.(sale);
     sale.status = "voided";
-    sale.voidInfo = { by: req.ctx.userId, byName: req.ctx.actorName, reason, at: new Date() };
+    sale.voidInfo = { by: ctx.userId, byName: ctx.actorName, reason, at: new Date() };
     await sale.save({ session });
 
     // A voided web sale means the order did not happen after all.
     if (sale.channel === "online" && sale.orderId) {
       await Order.updateOne(
         { _id: sale.orderId, status: { $nin: ["cancelled", "rejected"] } },
-        { $set: { status: "cancelled", reason: `Sale ${sale.saleNo} was voided: ${reason}` }, $push: { history: { status: "cancelled", by: req.ctx.actorName, note: `Sale voided: ${reason}` } } },
+        { $set: { status: "cancelled", reason: `Sale ${sale.saleNo} was voided: ${reason}` }, $push: { history: { status: "cancelled", by: ctx.actorName, note: `Sale voided: ${reason}` } } },
         { session }
       );
     }
@@ -328,12 +341,12 @@ salesRouter.post("/:id/void", requirePerm("void_sales"), async (req, res) => {
         const storePaid = sale.payments.find((p) => p.method === "store_credit");
         if (storePaid?.amount > 0) {
           const { changeStoreCredit } = await import("#modules/customers/storeCredit.js");
-          await changeStoreCredit(req.ctx, customer._id, storePaid.amount, { refType: "void", refId: sale._id, refNo: sale.saleNo, session });
+          await changeStoreCredit(ctx, customer._id, storePaid.amount, { refType: "void", refId: sale._id, refNo: sale.saleNo, session });
         }
         const creditPaid = sale.payments.find((p) => p.method === "credit");
         if (creditPaid) {
           const { applyCreditChange } = await import("#modules/customers/customerLedger.model.js");
-          await applyCreditChange(req.ctx, {
+          await applyCreditChange(ctx, {
             customer, type: "adjustment", amount: -creditPaid.amount,
             refType: "void", refId: sale._id, note: `Void ${sale.saleNo}`, session,
           });
@@ -345,7 +358,7 @@ salesRouter.post("/:id/void", requirePerm("void_sales"), async (req, res) => {
     const payments = {};
     for (const p of sale.payments) payments[p.method] = (payments[p.method] || 0) - p.amount;
     await bumpDailyMetric(
-      req.ctx,
+      ctx,
       sale.branchId,
       localDay(sale.at),
       {
@@ -364,10 +377,120 @@ salesRouter.post("/:id/void", requirePerm("void_sales"), async (req, res) => {
   });
 
   // Stock came back — anything that was flagged low may now be fine.
-  afterStockChange(req.ctx, sale.branchId, sale.items.flatMap((l) =>
+  afterStockChange(ctx, sale.branchId, sale.items.flatMap((l) =>
     l.components?.length ? l.components.map((c) => c.productId) : [l.productId]
   ));
 
-  audit(req.ctx, "sale.void", { type: "sale", id: sale._id, label: sale.saleNo }, { total: sale.total }, { reason });
-  res.json({ sale: shapeSale(sale, canSeeCost(req.ctx)) });
+
+  audit(ctx, "sale.void", { type: "sale", id: sale._id, label: sale.saleNo }, { total: sale.total }, { reason });
+  return sale;
+}
+
+// ── Undo last sale ─────────────────────────────────────────────────────
+// A salesperson can undo their own sale for a few minutes after recording it,
+// to fix a mistake at the till. Someone who can void sales undoes it at once;
+// anyone else sends a request that a different person must approve.
+
+const UNDO_WINDOW_MS = 10 * 60 * 1000;
+const canVoid = (ctx) => ctx.perms.includes("*") || ctx.perms.includes("void_sales");
+
+function undoBlocker(sale) {
+  if (sale.status !== "completed") return "This sale is already voided.";
+  if (sale.channel && sale.channel !== "pos") return "Only sales recorded at the till can be undone here.";
+  if (sale.service?.kind) return "Service payments are reversed from the screen they belong to.";
+  if (sale.items.some((i) => i.returnedQty > 0)) return "This sale has returns, so it can't be undone.";
+  return null;
+}
+
+const shapeUndo = (s) => ({
+  id: s._id, saleNo: s.saleNo, at: s.at, total: s.total, staffName: s.staffName, customerName: s.customerName,
+  items: s.items.map((i) => ({ name: i.name, qty: i.qty, lineNet: i.lineNet })),
+  undoRequest: s.undoRequest?.status ? {
+    status: s.undoRequest.status, byName: s.undoRequest.byName, reason: s.undoRequest.reason, at: s.undoRequest.at,
+    decidedByName: s.undoRequest.decidedByName, decidedAt: s.undoRequest.decidedAt, note: s.undoRequest.note,
+  } : null,
+  undoUntil: new Date(new Date(s.at).getTime() + UNDO_WINDOW_MS),
+});
+
+// GET /api/sales/undo/last — this person's latest till sale in this branch, if it can still be undone.
+salesRouter.get("/undo/last", requirePerm("sales"), requireBranch, async (req, res) => {
+  const sale = await Sale.findOne({
+    businessId: req.ctx.businessId, branchId: req.ctx.branchId, staffId: req.ctx.userId,
+    at: { $gte: new Date(Date.now() - UNDO_WINDOW_MS) },
+  }).sort({ at: -1 });
+  if (!sale || (sale.status !== "completed" && sale.undoRequest?.status !== "approved")) return res.json({ sale: null, canVoid: canVoid(req.ctx) });
+  if (sale.status === "completed" && undoBlocker(sale)) return res.json({ sale: null, canVoid: canVoid(req.ctx) });
+  res.json({ sale: shapeUndo(sale), canVoid: canVoid(req.ctx) });
+});
+
+// GET /api/sales/undo/requests?status=pending — undo requests for someone who can decide them.
+salesRouter.get("/undo/requests", requirePerm("void_sales"), async (req, res) => {
+  const status = ["pending", "approved", "rejected"].includes(req.query.status) ? req.query.status : "pending";
+  const filter = { businessId: req.ctx.businessId, "undoRequest.status": status };
+  if (req.ctx.branchId) filter.branchId = req.ctx.branchId;
+  const sales = await Sale.find(filter).sort({ "undoRequest.at": -1 }).limit(50);
+  res.json({ requests: sales.map(shapeUndo) });
+});
+
+// POST /api/sales/:id/undo { reason } — undo now, or ask for approval.
+salesRouter.post("/:id/undo", requirePerm("sales"), async (req, res) => {
+  const reason = String(req.body?.reason || "").trim().slice(0, 200);
+  if (reason.length < 3) return res.status(400).json({ error: "invalid", message: "Pick or type a reason." });
+  const sale = await Sale.findOne({ _id: req.params.id, businessId: req.ctx.businessId });
+  if (!sale) throw notFound("Sale not found.");
+  if (String(sale.staffId) !== String(req.ctx.userId)) throw new HttpError(403, "not_yours", "You can only undo a sale you recorded.");
+  if (Date.now() - new Date(sale.at).getTime() > UNDO_WINDOW_MS) {
+    throw conflict("It's been more than 10 minutes. Ask a manager to void this sale from Sales history.", "undo_expired");
+  }
+  const blocked = undoBlocker(sale);
+  if (blocked) throw conflict(blocked, "cannot_undo");
+  if (sale.undoRequest?.status === "pending") throw conflict("You already asked to undo this sale. A manager will decide.", "undo_pending");
+
+  const request = { status: "pending", by: req.ctx.userId, byName: req.ctx.actorName, reason, at: new Date() };
+  if (canVoid(req.ctx)) {
+    const done = await voidSale(req.ctx, sale._id, `Undone at the till: ${reason}`, (s) => {
+      s.undoRequest = { ...request, status: "approved", decidedBy: req.ctx.userId, decidedByName: req.ctx.actorName, decidedAt: new Date() };
+    });
+    return res.json({ done: true, sale: shapeUndo(done) });
+  }
+  sale.undoRequest = request;
+  await sale.save();
+  raiseUndoPending(req.ctx, sale);
+  audit(req.ctx, "sale.undo_request", { type: "sale", id: sale._id, label: sale.saleNo }, undefined, { reason, total: sale.total });
+  res.status(201).json({ done: false, sale: shapeUndo(sale) });
+});
+
+// POST /api/sales/:id/undo/approve — voids the sale. Two people, always.
+salesRouter.post("/:id/undo/approve", requirePerm("void_sales"), async (req, res) => {
+  const sale = await Sale.findOne({ _id: req.params.id, businessId: req.ctx.businessId });
+  if (!sale) throw notFound("Sale not found.");
+  if (sale.undoRequest?.status !== "pending") throw conflict("This request was already decided.", "decided");
+  if (String(sale.undoRequest.by) === String(req.ctx.userId)) {
+    throw new HttpError(403, "own_request", "You asked for this undo, so someone else has to approve it.");
+  }
+  const done = await voidSale(req.ctx, sale._id, `Undo requested by ${sale.undoRequest.byName}: ${sale.undoRequest.reason}`, (s) => {
+    s.undoRequest.status = "approved";
+    s.undoRequest.decidedBy = req.ctx.userId;
+    s.undoRequest.decidedByName = req.ctx.actorName;
+    s.undoRequest.decidedAt = new Date();
+  });
+  resolveUndoPending(req.ctx.businessId, sale._id);
+  res.json({ sale: shapeUndo(done) });
+});
+
+// POST /api/sales/:id/undo/reject { note } — the sale stands.
+salesRouter.post("/:id/undo/reject", requirePerm("void_sales"), async (req, res) => {
+  const note = String(req.body?.note || "").trim().slice(0, 200);
+  const sale = await Sale.findOne({ _id: req.params.id, businessId: req.ctx.businessId });
+  if (!sale) throw notFound("Sale not found.");
+  if (sale.undoRequest?.status !== "pending") throw conflict("This request was already decided.", "decided");
+  sale.undoRequest.status = "rejected";
+  sale.undoRequest.decidedBy = req.ctx.userId;
+  sale.undoRequest.decidedByName = req.ctx.actorName;
+  sale.undoRequest.decidedAt = new Date();
+  sale.undoRequest.note = note;
+  await sale.save();
+  resolveUndoPending(req.ctx.businessId, sale._id);
+  audit(req.ctx, "sale.undo_reject", { type: "sale", id: sale._id, label: sale.saleNo }, undefined, { note });
+  res.json({ sale: shapeUndo(sale) });
 });

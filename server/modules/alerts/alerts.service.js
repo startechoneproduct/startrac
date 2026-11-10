@@ -318,6 +318,31 @@ export async function resolveReturnPending(businessId, returnId) {
   await resolve(businessId, keys.returnPending(returnId)).catch(() => {});
 }
 
+// ── A salesperson asked to undo a sale ───────────────────────────────
+
+export async function raiseUndoPending(ctx, sale) {
+  try {
+    await raise(
+      { accountId: ctx.accountId, businessId: ctx.businessId, branchId: sale.branchId },
+      {
+        type: "undo_pending",
+        severity: "warning",
+        title: `${sale.undoRequest.byName} wants to undo ${sale.saleNo}`,
+        body: `Sale of ${sale.total}. Reason: ${sale.undoRequest.reason}`,
+        target: { type: "sale", id: sale._id, label: sale.saleNo },
+        dedupeKey: keys.undoPending(sale._id),
+        data: { amount: sale.total, saleNo: sale.saleNo, requestedBy: sale.undoRequest.byName },
+      }
+    );
+  } catch (err) {
+    console.error("undo alert failed:", err.message);
+  }
+}
+
+export async function resolveUndoPending(businessId, saleId) {
+  await resolve(businessId, keys.undoPending(saleId)).catch(() => {});
+}
+
 // ── Digest email ─────────────────────────────────────────────────────
 
 const TYPE_ORDER = { stock_out: 0, expired: 1, stock_low: 2, expiry_soon: 3, return_pending: 4, perm_changed: 5 };

@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 export type Notification = {
   id: string;
-  type: "stock_out" | "stock_low" | "expired" | "expiry_soon" | "return_pending" | "perm_changed" | "ticket_update" | "help_update" | "online_order";
+  type: "stock_out" | "stock_low" | "expired" | "expiry_soon" | "return_pending" | "undo_pending" | "perm_changed" | "ticket_update" | "help_update" | "online_order";
   severity: "info" | "warning" | "critical";
   title: string;
   body: string;
@@ -28,6 +28,7 @@ const ICONS = {
   expired: CalendarX2,
   expiry_soon: CalendarClock,
   return_pending: Undo2,
+  undo_pending: Undo2,
   perm_changed: ShieldCheck,
   ticket_update: LifeBuoy,
   help_update: LifeBuoy,
@@ -42,6 +43,7 @@ const DESTINATION: Record<Notification["type"], string> = {
   expired: "/app/products",
   expiry_soon: "/app/products",
   return_pending: "/app/returns",
+  undo_pending: "/app/sales",
   perm_changed: "/app/activity",
   ticket_update: "/app/tickets",
   help_update: "/app/help",
