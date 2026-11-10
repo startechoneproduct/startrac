@@ -84,7 +84,7 @@ export function Audit() {
   const paged = usePaged(entries);
 
   return (
-    <div className="p-6 lg:p-8 max-w-[900px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[900px] mx-auto">
       <PageHeader title="Audit Log" subtitle="Every sensitive action, on the record — newest first" />
       {loading ? (
         <Spinner />

@@ -50,7 +50,7 @@ export function MyBusinesses() {
   if (loading) return <div className="p-8"><Spinner /></div>;
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1200px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1200px] mx-auto">
       <PageHeader
         title="My Businesses"
         subtitle="One login, separate books. Nothing is shared between them but you."

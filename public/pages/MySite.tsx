@@ -18,6 +18,7 @@ import {
 } from "@/lib/site";
 import { fmtMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { animateSwitch } from "@/lib/viewTransition";
 
 type Config = {
   enabled: boolean; slug: string;
@@ -278,7 +279,7 @@ export function MySite() {
     };
   }, [payload, draft, images, gallery]);
 
-  if (loadError) return <div className="p-6 lg:p-8 max-w-[900px] mx-auto"><ErrorBanner message={loadError} /><EmptyState icon={Globe} title="Only the owner can edit this page" body="Ask the business owner to open Settings → Business page." /></div>;
+  if (loadError) return <div className="p-4 sm:p-6 lg:p-8 max-w-[900px] mx-auto"><ErrorBanner message={loadError} /><EmptyState icon={Globe} title="Only the owner can edit this page" body="Ask the business owner to open Settings → Business page." /></div>;
   if (!payload || !draft || !preview) return <div className="p-8"><Spinner /></div>;
 
   const featuredSet = new Set(draft.featuredIds);
@@ -296,7 +297,7 @@ export function MySite() {
   };
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1320px] mx-auto pb-28">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1320px] mx-auto pb-28">
       <PageHeader
         title="Business page"
         subtitle="Your own public page. Customers open it from a link or QR code, and only you can change it."
@@ -310,7 +311,7 @@ export function MySite() {
 
       <div className="flex p-1 rounded-2xl border border-line bg-surface-2 gap-1 mb-5 w-full sm:w-fit overflow-x-auto">
         {TABS.map(({ key, label, icon: Icon }) => (
-          <button key={key} type="button" onClick={() => setTab(key)} className={cn("flex items-center gap-2 px-4 h-10 rounded-xl text-[13px] font-bold whitespace-nowrap transition-all", tab === key ? "bg-surface text-primary shadow-e1" : "text-t3 hover:text-t1")}>
+          <button key={key} type="button" onClick={() => animateSwitch("tab", () => setTab(key))} className={cn("flex items-center gap-2 px-4 h-10 rounded-xl text-[13px] font-bold whitespace-nowrap transition-all", tab === key ? "bg-surface text-primary shadow-e1" : "text-t3 hover:text-t1")}>
             <Icon className="w-4 h-4" /> {label}
           </button>
         ))}

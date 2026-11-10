@@ -76,7 +76,7 @@ export function Settings() {
   const current = visible.find((s) => s.key === section) || visible[0];
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1000px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1000px] mx-auto">
       <PageHeader title="Settings" subtitle={`${data.business.typeLabel} · changes here are recorded in the audit trail`} />
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">

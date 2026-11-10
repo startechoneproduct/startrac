@@ -27,7 +27,7 @@ export function AskAI() {
   const openFromHistory = (c: OpenedChat) => { setChat({ id: c.id, module: c.module, turns: c.turns }); setShowHistory(false); };
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1120px] mx-auto flex flex-col h-full">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1120px] mx-auto flex flex-col h-full">
       <PageHeader
         title="Ask AI"
         subtitle="Answers grounded in this business's own numbers and how its trade works — actions always wait for your approval"

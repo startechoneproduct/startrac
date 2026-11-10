@@ -9,6 +9,7 @@ import { Badge, Card } from "@/components/ui/Card";
 import { EmptyState, PageHeader, Spinner } from "@/components/ui/EmptyState";
 import { ErrorBanner, Field, Input, Select, TextArea } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
+import { useOpenParam } from "@/lib/useOpenParam";
 import { Pager, ROWS_PER_PAGE } from "@/components/ui/Pager";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
@@ -58,15 +59,18 @@ export function Tickets() {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The open ticket is a history step: Back (or a phone's back gesture)
+  // closes the conversation and returns to this list, not the dashboard.
+  const [selectedId, openTicket, closeTicket] = useOpenParam("ticket");
 
   // Arriving from a notification click (?open=<id>) opens straight to it.
   useEffect(() => {
     const open = searchParams.get("open");
     if (open) {
-      setSelectedId(open);
-      searchParams.delete("open");
-      setSearchParams(searchParams, { replace: true });
+      const next = new URLSearchParams(searchParams);
+      next.delete("open");
+      next.set("ticket", open);
+      setSearchParams(next, { replace: true });
     }
   }, [searchParams, setSearchParams]);
 
@@ -85,7 +89,7 @@ export function Tickets() {
   ];
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1100px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1100px] mx-auto">
       <PageHeader
         title="Support"
         subtitle={canManage ? "Every ticket for this business" : "Tickets you raised or were assigned"}
@@ -133,7 +137,7 @@ export function Tickets() {
               const meta = STATUS_META[t.status];
               const Icon = meta.icon;
               return (
-                <button key={t.id} onClick={() => setSelectedId(t.id)} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-surface-2 transition-colors">
+                <button key={t.id} onClick={() => openTicket(t.id)} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-surface-2 transition-colors">
                   <span className={cn("w-9 h-9 shrink-0 rounded-xl flex items-center justify-center", STATUS_ICON_CLS[t.status])}>
                     <Icon className={cn("w-[18px] h-[18px]", t.status === "in_progress" && "animate-spin")} />
                   </span>
@@ -163,7 +167,7 @@ export function Tickets() {
       )}
 
       <NewTicket open={creating} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); reload(); }} />
-      <TicketDetail id={selectedId} canManage={canManage} onClose={() => setSelectedId(null)} onChanged={reload} />
+      <TicketDetail id={selectedId} canManage={canManage} onClose={closeTicket} onChanged={reload} />
     </div>
   );
 }

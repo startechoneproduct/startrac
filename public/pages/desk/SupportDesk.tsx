@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, NavLink, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, NavLink, useNavigate, useParams } from "react-router-dom";
 import {
   Headphones, Inbox, User as UserIcon, UserX, Clock, ListChecks, BarChart3, ArrowLeft, LogOut, Paperclip, Send, FileText,
-  Image as ImageIcon, X, Lock, Building2, Mail, Phone, CheckCircle2, Timer, Hourglass, MessageSquare,
+  Image as ImageIcon, X, Lock, Building2, Mail, Phone, CheckCircle2, Timer, Hourglass, MessageSquare, ChevronDown,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { Button } from "@/components/ui/Button";
@@ -12,6 +12,7 @@ import { Pager } from "@/components/ui/Pager";
 import { api, openFile } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { useSession } from "@/lib/session";
+import { useOpenParam } from "@/lib/useOpenParam";
 import { fmtDate, fmtDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Avatar, BarChart, EmptyBlock, KpiCard, Panel, Pill, SearchBox, Segmented } from "@/pages/platform/ui";
@@ -65,27 +66,38 @@ export function SupportDesk() {
   const navigate = useNavigate();
   const { view: page } = useParams();
   const reports = page === "reports";
+  // The top bar's back arrow steps back one level at a time: from a chat to
+  // the queue, from reports to the queue, and from the queue to the
+  // console's Support tab. Never straight out to the dashboard.
+  const [openTicket, , closeTicket] = useOpenParam("t");
+  const back = openTicket
+    ? { label: "Back to the queue", text: "Queue", go: closeTicket }
+    : reports
+      ? { label: "Back to the queue", text: "Queue", go: () => navigate("/desk") }
+      : { label: "Back to the console's support page", text: "Console", go: () => navigate("/admin/support") };
 
   return (
     <div className="admin-theme h-full flex flex-col bg-canvas">
-      <header className="shrink-0 h-14 px-4 sm:px-6 flex items-center gap-4 text-white" style={{ background: "var(--st-nav-bg)" }}>
-        <div className="flex items-center gap-2.5">
-          <span className="grid place-items-center w-8 h-8 rounded-lg bg-white/10"><Headphones className="w-4 h-4" /></span>
-          <div className="leading-tight">
+      <header className="shrink-0 h-14 px-3 sm:px-6 flex items-center gap-2 sm:gap-4 text-white" style={{ background: "var(--st-nav-bg)" }}>
+        <div className="flex items-center gap-2.5 shrink-0">
+          <span className="grid place-items-center w-8 h-8 rounded-lg bg-white/10" title="Support desk"><Headphones className="w-4 h-4" /></span>
+          {/* On a phone the icon alone carries the brand; the room goes to the controls. */}
+          <div className="leading-tight whitespace-nowrap max-sm:hidden">
             <div className="text-[13.5px] font-semibold">Support desk</div>
             <div className="text-[10.5px] text-white/55">StarTrack</div>
           </div>
         </div>
-        <nav className="flex items-center gap-1 ml-2" aria-label="Desk sections">
+        <nav className="flex items-center gap-1 sm:ml-2" aria-label="Desk sections">
           {[{ to: "/desk", label: "Queue", icon: Inbox, end: true }, { to: "/desk/reports", label: "Reports", icon: BarChart3, end: false }].map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.end}
-              className={({ isActive }) => cn("inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-[12.5px] font-semibold transition-colors", isActive ? "bg-white/15 text-white" : "text-white/65 hover:text-white")}>
-              <n.icon className="w-4 h-4" /> {n.label}
+            <NavLink key={n.to} to={n.to} end={n.end} aria-label={n.label}
+              className={({ isActive }) => cn("inline-flex items-center gap-1.5 h-8 px-2.5 sm:px-3 rounded-lg text-[12.5px] font-semibold whitespace-nowrap transition-colors", isActive ? "bg-white/15 text-white" : "text-white/65 hover:text-white")}>
+              <n.icon className="w-4 h-4" /> <span className="max-[419px]:hidden">{n.label}</span>
             </NavLink>
           ))}
         </nav>
-        <div className="ml-auto flex items-center gap-2">
-          <Link to="/admin/overview" className="hidden sm:inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-[12.5px] font-semibold text-white/70 hover:text-white"><ArrowLeft className="w-4 h-4" /> Console</Link>
+        <div className="ml-auto flex items-center gap-1 sm:gap-2 shrink-0">
+          {/* Always reachable: on a phone it's just the arrow. */}
+          <button type="button" onClick={back.go} aria-label={back.label} title={back.label} className="inline-flex items-center gap-1.5 h-8 px-2 sm:px-3 rounded-lg text-[12.5px] font-semibold text-white/70 hover:text-white"><ArrowLeft className="w-4 h-4" /> <span className="max-sm:hidden">{back.text}</span></button>
           <ThemeToggle className="!text-white/70 hover:!bg-white/10 hover:!text-white" />
           <span className="hidden md:flex items-center gap-2 text-[12.5px] text-white/80"><Avatar name={session?.user.name || "?"} size={28} /> {session?.user.name}</span>
           <button onClick={() => { logout(); navigate("/login", { replace: true }); }} aria-label="Sign out" className="grid place-items-center w-8 h-8 rounded-lg text-white/70 hover:text-white hover:bg-white/10"><LogOut className="w-4 h-4" /></button>
@@ -99,8 +111,8 @@ export function SupportDesk() {
 // ── Queue ─────────────────────────────────────────────────────────────
 
 function Queue() {
-  const [params, setParams] = useSearchParams();
-  const selected = params.get("t");
+  // The open ticket is a history step: Back closes the chat and returns to the queue.
+  const [selected, openTicket, closeTicket] = useOpenParam("t");
   const [view, setView] = useState<View>("waiting");
   const [q, setQ] = useState("");
   const [priority, setPriority] = useState("");
@@ -112,11 +124,6 @@ function Queue() {
   if (priority) qs.set("priority", priority);
   const { data, loading } = useApi<{ tickets: Row[]; page: number; pages: number; total: number; counts: Record<string, number> }>(`/desk/tickets?${qs}`, [version]);
 
-  function open(id: string | null) {
-    const next = new URLSearchParams(params);
-    if (id) next.set("t", id); else next.delete("t");
-    setParams(next, { replace: true });
-  }
 
   return (
     <div className="h-full flex">
@@ -153,7 +160,7 @@ function Queue() {
             <ul className="divide-y divide-line">
               {data.tickets.map((t) => (
                 <li key={t.id}>
-                  <button onClick={() => open(t.id)} aria-current={selected === t.id}
+                  <button onClick={() => openTicket(t.id)} aria-current={selected === t.id}
                     className={cn("relative w-full text-left px-4 py-3 transition-colors", selected === t.id ? "bg-primary-soft" : "hover:bg-surface-2")}>
                     {t.priority === "high" && <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-danger" aria-hidden />}
                     <div className="flex items-center gap-2">
@@ -184,7 +191,7 @@ function Queue() {
 
       {/* Conversation */}
       <section className={cn("flex-1 min-w-0", selected ? "flex" : "hidden md:flex")}>
-        {selected ? <TicketPane key={selected} id={selected} onBack={() => open(null)} onChanged={() => setVersion((v) => v + 1)} /> : (
+        {selected ? <TicketPane key={selected} id={selected} onBack={closeTicket} onChanged={() => setVersion((v) => v + 1)} /> : (
           <div className="m-auto"><EmptyBlock icon={MessageSquare} title="Pick a request" hint="Its conversation and the business's details open here." /></div>
         )}
       </section>
@@ -198,6 +205,8 @@ function TicketPane({ id, onBack, onChanged }: { id: string; onBack: () => void;
   const { data: team } = useApi<{ team: { id: string; name: string; role: string }[] }>("/desk/team", []);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  // Phone: the ticket's fields fold into one summary line so the chat keeps the room.
+  const [fieldsOpen, setFieldsOpen] = useState(false);
   const end = useRef<HTMLDivElement>(null);
   const t = data?.ticket;
   useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [t?.comments.length]);
@@ -217,33 +226,45 @@ function TicketPane({ id, onBack, onChanged }: { id: string; onBack: () => void;
   return (
     <div className="flex-1 flex min-w-0">
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="shrink-0 px-5 py-3.5 border-b border-line bg-surface">
-          <div className="flex items-center gap-2">
+        <div className="shrink-0 px-4 sm:px-5 py-3 sm:py-3.5 border-b border-line bg-surface">
+          <div className="flex items-center gap-2 flex-wrap">
             <button onClick={onBack} className="md:hidden grid place-items-center w-8 h-8 -ml-2 rounded-lg hover:bg-surface-2" aria-label="Back to the queue"><ArrowLeft className="w-4 h-4" /></button>
             <span className="font-mono text-[12px] font-semibold text-primary">{t.ref}</span>
             <Pill tone={STATUS_TONE[t.status]} dot>{STATUS_LABEL[t.status]}</Pill>
             {t.awaiting === "startrack" && t.status !== "resolved" && t.status !== "closed" && <Pill tone="warning">Waiting {ago(t.lastMessageAt)}</Pill>}
           </div>
           <h2 className="text-[16px] font-semibold text-t1 mt-1 truncate">{t.subject}</h2>
-          <div className="flex items-center gap-2 mt-2.5 flex-wrap">
-            <Select value={t.status} disabled={busy} onChange={(e) => patch({ status: e.target.value })} className="!w-[130px] !h-8 !text-[12.5px]" aria-label="Status">
+          <button
+            type="button"
+            onClick={() => setFieldsOpen((v) => !v)}
+            aria-expanded={fieldsOpen}
+            className="sm:hidden mt-2 w-full flex items-center gap-2 h-9 px-3 rounded-ctl border border-line bg-surface-2 text-[12.5px] text-t2 text-left"
+          >
+            <span className="min-w-0 flex-1 truncate">
+              {[STATUS_LABEL[t.status], t.priority === "high" ? "Urgent" : t.priority === "low" ? "Low" : "Normal", CATEGORY[t.category], t.assignee?.name || "Unassigned"].filter(Boolean).join(" · ")}
+            </span>
+            <ChevronDown className={cn("w-4 h-4 text-t3 shrink-0 transition-transform", fieldsOpen && "rotate-180")} />
+          </button>
+          <div className={cn("grid grid-cols-2 gap-2 mt-2 sm:mt-2.5 sm:flex sm:items-center sm:flex-wrap", !fieldsOpen && "max-sm:hidden", fieldsOpen && "animate-fade-in")}>
+            <Select value={t.status} disabled={busy} onChange={(e) => patch({ status: e.target.value })} className="!w-full sm:!w-[130px] !h-9 sm:!h-8 !text-[12.5px]" aria-label="Status">
               {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </Select>
-            <Select value={t.priority} disabled={busy} onChange={(e) => patch({ priority: e.target.value })} className="!w-[110px] !h-8 !text-[12.5px]" aria-label="Priority">
+            <Select value={t.priority} disabled={busy} onChange={(e) => patch({ priority: e.target.value })} className="!w-full sm:!w-[110px] !h-9 sm:!h-8 !text-[12.5px]" aria-label="Priority">
               <option value="high">Urgent</option><option value="normal">Normal</option><option value="low">Low</option>
             </Select>
-            <Select value={t.category} disabled={busy} onChange={(e) => patch({ category: e.target.value })} className="!w-[140px] !h-8 !text-[12.5px]" aria-label="Category">
+            <Select value={t.category} disabled={busy} onChange={(e) => patch({ category: e.target.value })} className="!w-full sm:!w-[140px] !h-9 sm:!h-8 !text-[12.5px]" aria-label="Category">
               {Object.entries(CATEGORY).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </Select>
-            <Select value={t.assignee?.id || ""} disabled={busy} onChange={(e) => patch({ assigneeId: e.target.value || null })} className="!w-[160px] !h-8 !text-[12.5px]" aria-label="Assigned to">
+            <Select value={t.assignee?.id || ""} disabled={busy} onChange={(e) => patch({ assigneeId: e.target.value || null })} className="!w-full sm:!w-[160px] !h-9 sm:!h-8 !text-[12.5px]" aria-label="Assigned to">
               <option value="">Unassigned</option>
               {(team?.team || []).map((m) => <option key={m.id} value={m.id}>{m.id === session?.user.id ? `${m.name} (me)` : m.name}</option>)}
             </Select>
-            {err && <span className="text-[12px] text-danger">{err}</span>}
+            {err && <span className="max-sm:hidden text-[12px] text-danger">{err}</span>}
           </div>
+          {err && <div className="sm:hidden mt-1.5 text-[12px] text-danger">{err}</div>}
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 bg-canvas">
+        <div className="flex-1 overflow-y-auto px-3 sm:px-5 py-4 space-y-3 bg-canvas">
           <DeskBubble side="business" name={t.raisedBy.name} sub={t.businessName} at={t.escalatedAt || t.createdAt} body={t.description || t.subject} files={t.attachments} onFile={file} />
           {t.comments.map((m, i) => <DeskBubble key={i} side={m.side} internal={m.internal} name={m.byName} at={m.at} body={m.body} files={m.attachments} onFile={file} />)}
           <div ref={end} />
@@ -307,14 +328,14 @@ function DeskBubble({ side, internal, name, sub, at, body, files, onFile }: {
   const ours = side === "startrack";
   return (
     <div className={cn("flex", ours ? "justify-end" : "justify-start")}>
-      <div className={cn("max-w-[80%] rounded-2xl px-3.5 py-2.5 border",
+      <div className={cn("max-w-[88%] sm:max-w-[80%] min-w-0 rounded-2xl px-3.5 py-2.5 border",
         internal ? "bg-warning-soft border-warning/40 rounded-br-md" : ours ? "bg-primary text-white border-primary rounded-br-md" : "bg-surface border-line rounded-bl-md")}>
-        <div className={cn("flex items-center gap-2 mb-0.5 text-[11px]", ours && !internal ? "text-white/75" : "text-t3")}>
+        <div className={cn("flex items-center flex-wrap gap-x-2 gap-y-0.5 mb-0.5 text-[11px]", ours && !internal ? "text-white/75" : "text-t3")}>
           {internal && <Lock className="w-3 h-3 text-warning" />}
           <span className="font-semibold">{name}</span>{sub && <span>· {sub}</span>}<span>{fmtDateTime(at)}</span>
           {internal && <span className="font-semibold text-warning">Internal note</span>}
         </div>
-        {body && <div className={cn("text-[13px] leading-relaxed whitespace-pre-wrap", ours && !internal ? "text-white" : "text-t1")}>{body}</div>}
+        {body && <div className={cn("text-[13px] leading-relaxed whitespace-pre-wrap break-words", ours && !internal ? "text-white" : "text-t1")}>{body}</div>}
         {files.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {files.map((a) => (

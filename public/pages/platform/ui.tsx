@@ -127,19 +127,19 @@ export function KpiCard({ icon: Icon, label, value, sub, tone = "brand", spark, 
   const t = TONES[tone];
   return (
     <div
-      className="group relative overflow-hidden rounded-card border border-line bg-surface p-5 shadow-e1 min-w-0 transition-[box-shadow,transform] duration-200 hover:shadow-lg2 hover:-translate-y-0.5"
+      className="group relative overflow-hidden rounded-card border border-line bg-surface p-4 sm:p-5 shadow-e1 min-w-0 transition-[box-shadow,transform] duration-200 hover:shadow-lg2 hover:-translate-y-0.5"
       style={{ backgroundImage: `linear-gradient(135deg, ${t.tint} 0%, transparent 58%)` }}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-2 sm:gap-3">
         <div className="min-w-0">
-          <div className="text-[12.5px] font-semibold text-t3 truncate">{label}</div>
-          <div className={cn("mt-2 leading-none font-bold font-mono truncate tracking-[-0.02em] text-t1 tabular-nums", value.length > 11 ? "text-[20px]" : value.length > 7 ? "text-[23px]" : "text-[28px]")}>{value}</div>
+          <div className="text-[12px] sm:text-[12.5px] font-semibold text-t3 truncate">{label}</div>
+          <div className={cn("mt-2 leading-none font-bold font-mono truncate tracking-[-0.02em] text-t1 tabular-nums", value.length > 11 ? "text-[16px] sm:text-[20px]" : value.length > 7 ? "text-[19px] sm:text-[23px]" : "text-[22px] sm:text-[28px]")}>{value}</div>
         </div>
-        <span className="grid place-items-center w-11 h-11 rounded-2xl text-white shrink-0" style={{ background: t.chip, boxShadow: `0 10px 18px -10px ${t.glow}` }}>
-          <Icon className="w-5 h-5" strokeWidth={1.9} />
+        <span className="grid place-items-center w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl text-white shrink-0" style={{ background: t.chip, boxShadow: `0 10px 18px -10px ${t.glow}` }}>
+          <Icon className="w-4 h-4 sm:w-5 sm:h-5" strokeWidth={1.9} />
         </span>
       </div>
-      {sub && <div className="mt-3.5 text-[12px] text-t3 truncate min-h-[20px] flex items-center">{sub}</div>}
+      {sub && <div className="mt-3 sm:mt-3.5 text-[11.5px] sm:text-[12px] text-t3 truncate min-h-[20px] flex items-center">{sub}</div>}
       {spark && spark.length > 1 && <div className="mt-3 -mx-1"><Sparkline values={spark} color={sparkColor} /></div>}
     </div>
   );

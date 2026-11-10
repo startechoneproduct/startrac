@@ -57,7 +57,7 @@ export function Projects() {
   const go = (id: string) => { setTab("projects"); setOpen(id); };
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1200px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1200px] mx-auto">
       <PageHeader title="Projects" subtitle={`${activeBranch?.name || ""} · client work, milestones and payments`} />
       <Tabs tabs={tabs} value={tab} onChange={(t) => { setTab(t); setOpen(null); }} />
       {tab === "overview" && <OverviewTab currency={currency} onOpen={go} />}

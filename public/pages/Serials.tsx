@@ -30,7 +30,7 @@ export function Serials() {
   const results = data?.serials || [];
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1000px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1000px] mx-auto">
       <PageHeader title="Serial Numbers" subtitle="Look up a unit — its status, sale, and repair history" />
 
       <Card className="p-4 mb-4">

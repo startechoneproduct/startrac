@@ -2,58 +2,62 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { RequireAuth, RequirePlatform, useSession } from "@/lib/session";
 import { AdminShell } from "@/components/layout/AdminShell";
-import { Landing } from "@/pages/Landing";
-import { Docs } from "@/pages/Docs";
-import { Login } from "@/pages/Login";
-import { Register } from "@/pages/Register";
-import { LoyaltyCardView } from "@/pages/LoyaltyCardView";
-import { Dashboard } from "@/pages/Dashboard";
-import { AllStores } from "@/pages/AllStores";
-import { StaffHome } from "@/pages/StaffHome";
-import { POS } from "@/pages/POS";
-import { Sales } from "@/pages/Sales";
-import { Products } from "@/pages/Products";
-import { StockIn } from "@/pages/StockIn";
-import { Transfers } from "@/pages/Transfers";
-import { Returns } from "@/pages/Returns";
-import { Jobs } from "@/pages/Jobs";
-import { Serials } from "@/pages/Serials";
-import { Production } from "@/pages/Production";
-import { Vaccinations } from "@/pages/Vaccinations";
-import { Suppliers } from "@/pages/Suppliers";
-import { StockCount } from "@/pages/StockCount";
-import { Cohorts } from "@/pages/Cohorts";
-import { KitchenQueue } from "@/pages/KitchenQueue";
-import { Hotel } from "@/pages/Hotel";
-import { ColdRoom } from "@/pages/ColdRoom";
-import { MyBusinesses } from "@/pages/MyBusinesses";
-import { Platform } from "@/pages/Platform";
-import { Customers } from "@/pages/Customers";
-import { Expenses } from "@/pages/Expenses";
-import { Staff } from "@/pages/Staff";
-import { Attendance } from "@/pages/Attendance";
-import { Activity } from "@/pages/Activity";
-import { Settings } from "@/pages/Settings";
-import { Audit } from "@/pages/Audit";
-import { Tickets } from "@/pages/Tickets";
-import { Help } from "@/pages/Help";
-import { SupportDesk } from "@/pages/desk/SupportDesk";
-import { AskAI } from "@/pages/AskAI";
-import { Members } from "@/pages/Members";
-import { Academy } from "@/pages/Academy";
-import { Appointments } from "@/pages/Appointments";
-import { Projects } from "@/pages/Projects";
-import { MySite } from "@/pages/MySite";
-import { Orders } from "@/pages/Orders";
-import { Invoices } from "@/pages/Invoices";
-import { InvoiceView } from "@/pages/InvoiceView";
-import { ReceiptView } from "@/pages/ReceiptView";
-import { Inventory } from "@/pages/Inventory";
-import { ImportHistory } from "@/pages/ImportHistory";
-import { Billing } from "@/pages/Billing";
-import { ReceiptDesigner } from "@/pages/ReceiptDesigner";
 import { FeatureGate } from "@/components/plan/PlanUi";
-import { BusinessSite } from "@/pages/BusinessSite";
+import { lazyPage } from "@/lib/lazyPage";
+import { Suspense } from "react";
+
+// Every page loads on demand, in its own file (see lib/lazyPage.ts).
+const Landing = lazyPage(() => import("@/pages/Landing"), "Landing");
+const Docs = lazyPage(() => import("@/pages/Docs"), "Docs");
+const Login = lazyPage(() => import("@/pages/Login"), "Login");
+const Register = lazyPage(() => import("@/pages/Register"), "Register");
+const LoyaltyCardView = lazyPage(() => import("@/pages/LoyaltyCardView"), "LoyaltyCardView");
+const Dashboard = lazyPage(() => import("@/pages/Dashboard"), "Dashboard");
+const AllStores = lazyPage(() => import("@/pages/AllStores"), "AllStores");
+const StaffHome = lazyPage(() => import("@/pages/StaffHome"), "StaffHome");
+const POS = lazyPage(() => import("@/pages/POS"), "POS");
+const Sales = lazyPage(() => import("@/pages/Sales"), "Sales");
+const Products = lazyPage(() => import("@/pages/Products"), "Products");
+const StockIn = lazyPage(() => import("@/pages/StockIn"), "StockIn");
+const Transfers = lazyPage(() => import("@/pages/Transfers"), "Transfers");
+const Returns = lazyPage(() => import("@/pages/Returns"), "Returns");
+const Jobs = lazyPage(() => import("@/pages/Jobs"), "Jobs");
+const Serials = lazyPage(() => import("@/pages/Serials"), "Serials");
+const Production = lazyPage(() => import("@/pages/Production"), "Production");
+const Vaccinations = lazyPage(() => import("@/pages/Vaccinations"), "Vaccinations");
+const Suppliers = lazyPage(() => import("@/pages/Suppliers"), "Suppliers");
+const StockCount = lazyPage(() => import("@/pages/StockCount"), "StockCount");
+const Cohorts = lazyPage(() => import("@/pages/Cohorts"), "Cohorts");
+const KitchenQueue = lazyPage(() => import("@/pages/KitchenQueue"), "KitchenQueue");
+const Hotel = lazyPage(() => import("@/pages/Hotel"), "Hotel");
+const ColdRoom = lazyPage(() => import("@/pages/ColdRoom"), "ColdRoom");
+const MyBusinesses = lazyPage(() => import("@/pages/MyBusinesses"), "MyBusinesses");
+const Platform = lazyPage(() => import("@/pages/Platform"), "Platform");
+const Customers = lazyPage(() => import("@/pages/Customers"), "Customers");
+const Expenses = lazyPage(() => import("@/pages/Expenses"), "Expenses");
+const Staff = lazyPage(() => import("@/pages/Staff"), "Staff");
+const Attendance = lazyPage(() => import("@/pages/Attendance"), "Attendance");
+const Activity = lazyPage(() => import("@/pages/Activity"), "Activity");
+const Settings = lazyPage(() => import("@/pages/Settings"), "Settings");
+const Audit = lazyPage(() => import("@/pages/Audit"), "Audit");
+const Tickets = lazyPage(() => import("@/pages/Tickets"), "Tickets");
+const Help = lazyPage(() => import("@/pages/Help"), "Help");
+const SupportDesk = lazyPage(() => import("@/pages/desk/SupportDesk"), "SupportDesk");
+const AskAI = lazyPage(() => import("@/pages/AskAI"), "AskAI");
+const Members = lazyPage(() => import("@/pages/Members"), "Members");
+const Academy = lazyPage(() => import("@/pages/Academy"), "Academy");
+const Appointments = lazyPage(() => import("@/pages/Appointments"), "Appointments");
+const Projects = lazyPage(() => import("@/pages/Projects"), "Projects");
+const MySite = lazyPage(() => import("@/pages/MySite"), "MySite");
+const Orders = lazyPage(() => import("@/pages/Orders"), "Orders");
+const Invoices = lazyPage(() => import("@/pages/Invoices"), "Invoices");
+const InvoiceView = lazyPage(() => import("@/pages/InvoiceView"), "InvoiceView");
+const ReceiptView = lazyPage(() => import("@/pages/ReceiptView"), "ReceiptView");
+const Inventory = lazyPage(() => import("@/pages/Inventory"), "Inventory");
+const ImportHistory = lazyPage(() => import("@/pages/ImportHistory"), "ImportHistory");
+const Billing = lazyPage(() => import("@/pages/Billing"), "Billing");
+const ReceiptDesigner = lazyPage(() => import("@/pages/ReceiptDesigner"), "ReceiptDesigner");
+const BusinessSite = lazyPage(() => import("@/pages/BusinessSite"), "BusinessSite");
 
 // Owners/managers land on the dashboard; till-PIN staff land straight on the
 // POS (speed matters at the till); account-login staff without a dashboard
@@ -71,8 +75,15 @@ function Home() {
   return <Navigate to="home" replace />;
 }
 
+// While a page outside the app's frame loads (landing, sign-in, the desk…):
+// a quiet, empty screen in the page colour, rather than a flash of white.
+function PageLoading() {
+  return <div className="min-h-dvh bg-canvas" aria-busy="true" />;
+}
+
 export default function App() {
   return (
+    <Suspense fallback={<PageLoading />}>
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/docs" element={<Docs />} />
@@ -150,5 +161,6 @@ export default function App() {
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   );
 }

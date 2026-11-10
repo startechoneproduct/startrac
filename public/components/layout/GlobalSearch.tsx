@@ -37,7 +37,12 @@ const ORDER: Category[] = ["page", "product", "customer", "sale", "staff", "expe
  * down to it (Products/Customers ?q=, Sales ?saleNo=) — see those pages'
  * useSearchParams sync.
  */
-export function GlobalSearch() {
+/**
+ * `mobile`: the phone version, opened from the top bar's search button. It
+ * spans the bar, focuses straight away, and calls `onDone` once a result is
+ * picked or Esc is pressed so the top bar can put its buttons back.
+ */
+export function GlobalSearch({ mobile = false, onDone }: { mobile?: boolean; onDone?: () => void } = {}) {
   const navigate = useNavigate();
   const { can, currency, activeBusiness } = useSession();
   const [q, setQ] = useState("");
@@ -127,16 +132,17 @@ export function GlobalSearch() {
     setQ("");
     setOpen(false);
     inputRef.current?.blur();
+    onDone?.();
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Escape") { setOpen(false); inputRef.current?.blur(); return; }
+    if (e.key === "Escape") { setOpen(false); inputRef.current?.blur(); onDone?.(); return; }
     if (!open || !flat.length) {
       if (e.key === "Enter" && q.trim()) {
         // No matches at all yet (or still loading) — the catalog is the
         // most likely place anything typed here actually lives.
         navigate(`/app/products?q=${encodeURIComponent(q.trim())}`);
-        setQ(""); setOpen(false); inputRef.current?.blur();
+        setQ(""); setOpen(false); inputRef.current?.blur(); onDone?.();
       }
       return;
     }
@@ -149,7 +155,7 @@ export function GlobalSearch() {
   let runningIndex = -1;
 
   return (
-    <div ref={boxRef} className="flex-1 max-w-md relative max-sm:hidden" data-tour="topbar-search">
+    <div ref={boxRef} className={mobile ? "flex-1 relative" : "flex-1 max-w-md relative max-sm:hidden"} data-tour={mobile ? undefined : "topbar-search"}>
       <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-t3 pointer-events-none" />
       <input
         ref={inputRef}
@@ -157,7 +163,9 @@ export function GlobalSearch() {
         onChange={(e) => { setQ(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
-        placeholder="Search anything… (Ctrl+K)"
+        autoFocus={mobile}
+        enterKeyHint="search"
+        placeholder={mobile ? "Search products, customers, sales…" : "Search anything… (Ctrl+K)"}
         className="w-full h-11 pl-11 pr-4 rounded-xl bg-surface-3 border border-transparent text-[13px] text-t1 placeholder:text-t3 focus:outline-none focus:border-primary focus:bg-surface focus:shadow-[var(--st-focus-ring)] transition-[border-color,box-shadow,background-color]"
       />
 

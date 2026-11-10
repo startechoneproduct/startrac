@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ChevronDown, KeyRound, LogOut, Store, Building2, Plus, Menu, Lock, RefreshCw, Check } from "lucide-react";
+import { ChevronDown, KeyRound, LogOut, Store, Building2, Plus, Menu, Lock, RefreshCw, Check, Search } from "lucide-react";
 import { refreshAll } from "@/lib/useApi";
 import { Button } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
@@ -62,6 +62,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
   const [bizOpen, setBizOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const [pinOpen, setPinOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const ref = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -77,8 +78,8 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
   const menu = "absolute top-full mt-2 left-0 pop border border-line rounded-2xl shadow-e2 py-2 z-50";
 
   return (
-    <header ref={ref} className="frost h-[72px] shrink-0 border-b border-line flex items-center gap-3 px-4 lg:px-12 relative z-30">
-      <button onClick={onMenu} aria-label="Open menu" className="lg:hidden w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-t1 hover:bg-surface-3">
+    <header ref={ref} className="frost h-16 sm:h-[72px] shrink-0 border-b border-line flex items-center gap-2 sm:gap-3 px-3 sm:px-4 lg:px-12 relative z-30">
+      <button onClick={onMenu} aria-label="Open menu" className="lg:hidden w-10 h-10 shrink-0 -ml-1 rounded-full flex items-center justify-center text-t1 hover:bg-surface-3">
         <Menu className="w-5 h-5" />
       </button>
 
@@ -126,17 +127,30 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
         )}
       </div>
 
-      <div className="flex items-center gap-2 ml-auto shrink-0">
+      {/* Phone: search opens over the whole bar, since there's no room for the box. */}
+      {searchOpen && (
+        <div className="sm:hidden absolute inset-0 z-40 bg-surface flex items-center gap-2 px-3 animate-fade-in">
+          <GlobalSearch mobile onDone={() => setSearchOpen(false)} />
+          <button onClick={() => setSearchOpen(false)} className="shrink-0 h-10 px-2 text-[13px] font-semibold text-t2">Cancel</button>
+        </div>
+      )}
+
+      <div className="flex items-center gap-1.5 sm:gap-2 ml-auto shrink-0">
+        <button onClick={() => setSearchOpen(true)} aria-label="Search" className="sm:hidden grid place-items-center w-10 h-10 rounded-full text-t2 hover:bg-surface-3">
+          <Search className="w-[18px] h-[18px]" />
+        </button>
         {can("sales") && (
           <Link
             to="/app/pos"
             data-tour="new-sale-btn"
-            className="inline-flex items-center gap-1.5 h-10 px-4 rounded-xl bg-primary text-white text-[13px] font-bold"
+            aria-label="New sale"
+            className="inline-flex items-center justify-center gap-1.5 h-10 max-sm:w-10 sm:px-4 rounded-xl bg-primary text-white text-[13px] font-bold"
           >
             <Plus className="w-4 h-4" /> <span className="max-sm:hidden">New sale</span>
           </Link>
         )}
-        <RefreshButton />
+        {/* Very narrow phones: the refresh button gives way so the bar never overflows. */}
+        <span className="contents max-[359px]:hidden"><RefreshButton /></span>
         <span data-tour="topbar-notifications" className="flex">
           <NotificationBell />
         </span>

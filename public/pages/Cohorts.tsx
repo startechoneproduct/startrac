@@ -10,6 +10,7 @@ import { useApi } from "@/lib/useApi";
 import { useSession } from "@/lib/session";
 import { fmtDateTime, fmtDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { animateSwitch } from "@/lib/viewTransition";
 
 type Cohort = {
   id: string; name: string; species: string; startDate: string;
@@ -31,7 +32,7 @@ export function Cohorts() {
   const [openId, setOpenId] = useState<string | null>(null);
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1000px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1000px] mx-auto">
       <PageHeader
         title="Batches"
         subtitle="Flocks fed daily, tracked through mortality, and harvested into real stock"
@@ -171,7 +172,7 @@ function CohortDetailModal({ cohortId, onClose, onChanged, canManage }: {
                 ] as const).map((t) => (
                   <button
                     key={t.key}
-                    onClick={() => setTab(t.key)}
+                    onClick={() => animateSwitch("tab", () => setTab(t.key))}
                     className={cn("flex-1 h-8 rounded-md text-[12px] font-semibold flex items-center justify-center gap-1.5 transition-colors", tab === t.key ? "bg-surface text-t1 shadow-e1" : "text-t3 hover:text-t1")}
                   >
                     <t.icon className="w-3.5 h-3.5" /> {t.label}

@@ -13,6 +13,7 @@ import { useApi } from "@/lib/useApi";
 import { useSession } from "@/lib/session";
 import { fmtMoney, fmtDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { animateSwitch } from "@/lib/viewTransition";
 import { ReorderTab, OrdersTab } from "@/pages/InventoryOrders";
 
 type Tab = "stock" | "value" | "movers" | "reorder" | "orders";
@@ -42,7 +43,7 @@ export function Inventory() {
   ];
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1240px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1240px] mx-auto">
       <PageHeader
         title="Inventory"
         subtitle="What's on the shelf, what it's worth, what's selling, and what to buy next"
@@ -55,7 +56,7 @@ export function Inventory() {
 
       <div className="flex p-1 rounded-2xl border border-line bg-surface-2 gap-1 mb-5 w-full sm:w-fit overflow-x-auto" role="tablist">
         {tabs.filter((t) => t.show).map(({ key, label, icon: Icon }) => (
-          <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
+          <button key={key} role="tab" aria-selected={tab === key} onClick={() => animateSwitch("tab", () => setTab(key))}
             className={cn("flex items-center gap-2 px-4 h-10 rounded-xl text-[13px] font-bold whitespace-nowrap transition-all", tab === key ? "bg-surface text-primary shadow-e1" : "text-t3 hover:text-t1")}>
             <Icon className="w-4 h-4" /> {label}
           </button>
@@ -65,7 +66,7 @@ export function Inventory() {
       {tab === "stock" && <StockTab key={version} canCost={canCost} currency={currency} onChanged={bump} />}
       {tab === "value" && <ValueTab currency={currency} />}
       {tab === "movers" && <MoversTab canCost={canCost} currency={currency} />}
-      {tab === "reorder" && <ReorderTab canCost={canCost} currency={currency} goOrders={() => setTab("orders")} />}
+      {tab === "reorder" && <ReorderTab canCost={canCost} currency={currency} goOrders={() => animateSwitch("tab", () => setTab("orders"))} />}
       {tab === "orders" && <OrdersTab currency={currency} onChanged={bump} />}
 
       <SpreadsheetImport

@@ -58,7 +58,7 @@ export function Transfers() {
 
   if (others.length === 0) {
     return (
-      <div className="p-6 lg:p-8 max-w-[1200px] mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1200px] mx-auto">
         <PageHeader title="Transfers" subtitle="Move stock between branches" />
         <Card>
           <EmptyState
@@ -72,7 +72,7 @@ export function Transfers() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1200px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1200px] mx-auto">
       <PageHeader title="Transfers" subtitle={`Send stock from ${activeBranch?.name} to another branch — both ledgers record it`} />
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">

@@ -55,7 +55,7 @@ export function Returns() {
   const printOne = (r: Ret) => printReturn(r, activeBusiness?.name || "", currency);
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1250px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1250px] mx-auto">
       <PageHeader title="Returns" subtitle="Staff record a return, a manager approves it, and stock and money correct themselves" />
 
       {totals && (

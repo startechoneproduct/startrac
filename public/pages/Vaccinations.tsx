@@ -43,7 +43,7 @@ export function Vaccinations() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-[900px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[900px] mx-auto">
       <PageHeader
         title="Vaccination & Medication"
         subtitle="Dosage records for a flock or batch"

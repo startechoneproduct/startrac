@@ -106,7 +106,7 @@ export function Expenses() {
   const biggest = data?.byType[0];
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1150px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1150px] mx-auto">
       <PageHeader
         title="Expenses"
         subtitle={`${activeBranch?.name || ""} · what you spend comes off your profit`}
@@ -173,7 +173,7 @@ export function Expenses() {
 
           {error ? <Card><EmptyState icon={ReceiptText} title="Couldn't load expenses" body={error} /></Card> : loading || !data ? <Spinner /> : (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-5 mb-5">
                 <StatCard tone="danger" label="Spent" value={money(data.total)} icon={Wallet} hint={`${fmtDate(from)} to ${fmtDate(to)}`} />
                 <StatCard tone="neutral" label="Entries" value={String(data.count)} icon={ReceiptText} hint={filtered ? "matching your filters" : "in this period"} />
                 <StatCard tone="warning" label={biggest ? `Biggest: ${biggest.type}` : "Biggest category"} value={biggest ? money(biggest.amount) : "None yet"} icon={Tag}
@@ -319,7 +319,7 @@ function MonthlyView({ money, branchKey }: { money: (n: number) => string; branc
       </div>
       {loading || !data ? <Spinner /> : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-5">
             <StatCard tone="danger" label={`Spent in ${year}`} value={money(data.total)} icon={Wallet} />
             <StatCard tone="neutral" label="Monthly average" value={money(data.total / Math.max(1, counted))} icon={CalendarClock} hint={`over ${counted} ${counted === 1 ? "month" : "months"}`} />
             <StatCard tone="warning" label={data.byType[0] ? `Biggest: ${data.byType[0].type}` : "Biggest category"} value={data.byType[0] ? money(data.byType[0].amount) : "None yet"} icon={Tag} />

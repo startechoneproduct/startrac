@@ -29,7 +29,7 @@ export function Suppliers() {
   const paged = usePaged(suppliers);
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1100px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1100px] mx-auto">
       <PageHeader
         title="Suppliers"
         subtitle="Who you buy from — market vendors, distributors, one-off deliveries"

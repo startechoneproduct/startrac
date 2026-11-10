@@ -63,7 +63,7 @@ export function StockCount() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1100px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1100px] mx-auto">
       <PageHeader
         title="Stock Counts"
         subtitle="Count what is really on the shelf, note why anything is off, and the system is corrected"
