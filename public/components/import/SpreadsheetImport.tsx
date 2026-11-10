@@ -190,7 +190,7 @@ export function SpreadsheetImport({ open, onClose, title, subtitle, endpoint, fi
                     {report.sample.length > 0 && (
                       <div className="rounded-xl border border-line overflow-hidden">
                         <div className="px-3.5 py-2 bg-surface-2 text-[11.5px] font-semibold text-t3">What will be saved (first {report.sample.length})</div>
-                        <table className="w-full text-[12.5px]">
+                        <table data-no-stack className="w-full text-[12.5px]">
                           <thead><tr className="border-b border-line text-t4">{columns.map((c) => <th key={c.label} className={cn("px-3.5 py-1.5 font-medium", c.align === "right" ? "text-right" : "text-left")}>{c.label}</th>)}</tr></thead>
                           <tbody>{report.sample.map((row, i) => <tr key={i} className="border-b border-line last:border-0">{columns.map((c) => <td key={c.label} className={cn("px-3.5 py-1.5 text-t1", c.align === "right" && "text-right font-mono tabular-nums")}>{c.cell(row)}</td>)}</tr>)}</tbody>
                         </table>

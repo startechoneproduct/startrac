@@ -41,7 +41,7 @@ export function StaffHome() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1100px] mx-auto space-y-5">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1100px] mx-auto space-y-5">
       <Header onTakeTour={() => setTourOpen(true)} />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <TasksCard className="lg:col-span-2" />

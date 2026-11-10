@@ -68,7 +68,7 @@ export function Academy() {
   ];
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1200px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1200px] mx-auto">
       <PageHeader
         title="Academy"
         subtitle={`${activeBranch?.name || ""} · courses, classes, students and fees`}

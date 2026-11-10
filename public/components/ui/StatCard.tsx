@@ -65,32 +65,32 @@ export function StatCard({
   return (
     <div
       className={cn(
-        "group relative overflow-hidden rounded-card border border-line bg-surface p-5 shadow-e1 min-w-0",
+        "group relative overflow-hidden rounded-card border border-line bg-surface p-4 sm:p-5 shadow-e1 min-w-0",
         "transition-[box-shadow,transform] duration-200 hover:shadow-lg2 hover:-translate-y-0.5",
         className
       )}
       style={{ backgroundImage: `linear-gradient(135deg, ${t.tint} 0%, transparent 58%)` }}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-2 sm:gap-3">
         <div className="min-w-0">
-          <div className="text-[12.5px] font-semibold text-t3 truncate">{label}</div>
+          <div className="text-[12px] sm:text-[12.5px] font-semibold text-t3 truncate">{label}</div>
           <div
-            className={cn("mt-2 leading-none font-bold font-mono truncate tracking-[-0.02em]", value.length > 12 ? "text-[21px]" : value.length > 9 ? "text-[24px]" : "text-[28px]")}
+            className={cn("mt-2 leading-none font-bold font-mono truncate tracking-[-0.02em]", value.length > 12 ? "text-[17px] sm:text-[21px]" : value.length > 9 ? "text-[19px] sm:text-[24px]" : "text-[22px] sm:text-[28px]")}
             style={{ color: valueTone ? TONES[valueTone].text : "var(--st-text-1)" }}
           >
             {value}
           </div>
         </div>
         <span
-          className="grid place-items-center w-11 h-11 rounded-2xl text-white shrink-0"
+          className="grid place-items-center w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl text-white shrink-0"
           style={{ background: t.chip, boxShadow: `0 10px 18px -10px ${t.glow}` }}
         >
-          <Icon className="w-5 h-5" strokeWidth={1.9} />
+          <Icon className="w-4 h-4 sm:w-5 sm:h-5" strokeWidth={1.9} />
         </span>
       </div>
 
       {(change !== undefined || delta || hint) && (
-        <div className="mt-3.5 flex items-center gap-2 min-h-[20px]">
+        <div className="mt-3 sm:mt-3.5 flex items-center gap-x-2 gap-y-1 min-h-[20px] flex-wrap">
           {change !== undefined && <DeltaChip value={change} />}
           {delta && (
             <span className={cn("inline-flex items-center gap-0.5 text-[12px] font-bold", up ? "text-success" : "text-danger")}>

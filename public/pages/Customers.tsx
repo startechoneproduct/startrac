@@ -56,7 +56,7 @@ export function Customers() {
   const paged = usePaged(customers);
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1100px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1100px] mx-auto">
       <PageHeader
         title="Customers"
         subtitle="Everyone who's bought from you — built automatically from sales"

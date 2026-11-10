@@ -252,7 +252,7 @@ export function AllStores() {
   }, [data]);
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1240px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1240px] mx-auto">
       <PageHeader
         title="All stores"
         subtitle="Sales, profit or loss and stock for every business and branch you run, side by side"
@@ -292,7 +292,7 @@ export function AllStores() {
                   <Hero t={t} shares={shares} currency={t.currency} />
                   {list.length > 1 && <Ranking rows={list} finance={finance} onOpen={(r) => open(r.businessId, r.branchId)} />}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+                <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-5">
                   <StatCard
                     tone="warning"
                     label="Stock on hand"

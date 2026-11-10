@@ -129,7 +129,7 @@ export function ImportPreviewCard({
       {p.sample.length > 0 && (
         <div className="px-3.5 pt-3">
           <div className="rounded-xl border border-line overflow-x-auto">
-            <table className="w-full text-[12px]">
+            <table data-no-stack className="w-full text-[12px]">
               <thead>
                 <tr className="bg-surface-2">
                   {p.columns.map((c) => (

@@ -4,14 +4,46 @@
 const BASE = (import.meta.env.VITE_API_URL as string) || "/api";
 const TOKEN_KEY = "startrack.token";
 
-let token: string | null = localStorage.getItem(TOKEN_KEY);
+/**
+ * Who this tab is signed in as.
+ *
+ * Each tab keeps its own login (sessionStorage), so one tab can stay on the
+ * admin account while another uses a test shop, and a reload never swaps a
+ * tab onto whichever account was signed into last somewhere else.
+ * localStorage only holds the most recent sign-in, so a brand-new tab
+ * starts signed in instead of asking every time.
+ */
+function readToken(): string | null {
+  try {
+    const own = sessionStorage.getItem(TOKEN_KEY);
+    if (own) return own;
+    // A tab without its own login yet (just opened, or opened before this
+    // rule existed) takes the latest sign-in AND keeps a private copy of it
+    // straight away, so a sign-in in another tab can't switch it later.
+    const latest = localStorage.getItem(TOKEN_KEY);
+    if (latest) sessionStorage.setItem(TOKEN_KEY, latest);
+    return latest;
+  } catch { return null; }
+}
+
+let token: string | null = readToken();
 let businessId: string | null = null;
 let branchId: string | null = null;
 
 export function setToken(t: string | null) {
+  const previous = token;
   token = t;
-  if (t) localStorage.setItem(TOKEN_KEY, t);
-  else localStorage.removeItem(TOKEN_KEY);
+  try {
+    if (t) {
+      sessionStorage.setItem(TOKEN_KEY, t);
+      localStorage.setItem(TOKEN_KEY, t);
+    } else {
+      sessionStorage.removeItem(TOKEN_KEY);
+      // Signing out here only clears the shared default if it was this tab's
+      // own login: signing out of a test tab mustn't sign new tabs out of admin.
+      if (localStorage.getItem(TOKEN_KEY) === previous) localStorage.removeItem(TOKEN_KEY);
+    }
+  } catch { /* storage blocked: the login just lasts for this page */ }
 }
 export function getToken() {
   return token;

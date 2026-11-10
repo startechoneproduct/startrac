@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { SkeletonList } from "@/components/ui/Skeleton";
+import { prefetchPages } from "@/lib/lazyPage";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Sparkles } from "lucide-react";
 import { Topbar } from "./Topbar";
@@ -11,6 +13,7 @@ import { flattenNav } from "@/lib/navItems";
 import { typeMeta } from "@/lib/businessTypes";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ShieldOff } from "lucide-react";
+import { SIDEBAR_EVENT } from "@/components/tour/ProductTour";
 
 // A page this person's permissions don't cover, reached by typing its address.
 // The server refuses its data either way; this just says so plainly instead of
@@ -56,6 +59,20 @@ export function AppShell() {
   // The Ask AI page holds the conversation itself; refreshing it would wipe the chat on screen.
   const version = pathname === "/app/ask-ai" ? 0 : dataVersion;
   const [menuOpen, setMenuOpen] = useState(false);
+  // A new page starts at its top, not wherever the last one was scrolled to.
+  const mainRef = useRef<HTMLElement>(null);
+  useEffect(() => { mainRef.current?.scrollTo({ top: 0 }); }, [pathname]);
+  // Signed in: fetch the other pages in the background (see lib/lazyPage.ts).
+  useEffect(() => prefetchPages(), []);
+  // The phone drawer closes whenever the page changes, however that happened.
+  useEffect(() => setMenuOpen(false), [pathname]);
+  // The product tour opens the drawer to point at sidebar items on a phone,
+  // and closes it again for everything else (see ProductTour).
+  useEffect(() => {
+    const on = (e: Event) => setMenuOpen(!!(e as CustomEvent<boolean>).detail);
+    window.addEventListener(SIDEBAR_EVENT, on);
+    return () => window.removeEventListener(SIDEBAR_EVENT, on);
+  }, []);
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem(COLLAPSE_KEY) === "1"; } catch { return false; }
   });
@@ -80,8 +97,16 @@ export function AppShell() {
           {/* Keyed by store: switching business or branch remounts the page so
               every list, form and cached total is re-fetched for the new store
               instead of showing the previous one's data. */}
-          <main key={`${activeBusiness?.id}:${activeBranch?.id}:${version}`} className="content-bg flex-1 min-h-0 overflow-y-auto">
-            <PermissionGate><Outlet /></PermissionGate>
+          <main ref={mainRef} key={`${activeBusiness?.id}:${activeBranch?.id}:${version}`} className="st-vt-page content-bg flex-1 min-h-0 overflow-y-auto">
+            {/* Keyed by page so each tab change plays a short fade-in rather
+                than cutting hard from one screen to the next. */}
+            <div key={pathname} className="st-page-enter">
+              {/* A page opened for the first time loads its code: the frame
+                  stays put and the page area shows a skeleton meanwhile. */}
+              <Suspense fallback={<div className="p-4 sm:p-6 lg:p-8 max-w-[1200px] mx-auto"><SkeletonList rows={6} /></div>}>
+                <PermissionGate><Outlet /></PermissionGate>
+              </Suspense>
+            </div>
           </main>
         </div>
       </div>

@@ -59,7 +59,7 @@ export function Appointments() {
     { key: "services", label: "Service menu" },
   ];
   return (
-    <div className="p-6 lg:p-8 max-w-[1200px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1200px] mx-auto">
       <PageHeader title="Appointments" subtitle={`${activeBranch?.name || ""} · bookings, providers and the day's takings`} />
       <Tabs tabs={tabs} value={tab} onChange={setTab} />
       {tab === "schedule" && <ScheduleTab currency={currency} />}

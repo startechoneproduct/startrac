@@ -64,7 +64,7 @@ export function Staff() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1100px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1100px] mx-auto">
       <PageHeader
         title="Staff"
         subtitle="Roles decide what each person can see and do — enforced by the server"
@@ -105,7 +105,7 @@ export function Staff() {
         <Spinner />
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-5">
+          <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-5 mb-5">
             <StatCard index={0} label="Total staff" value={String(staff.length)} icon={UserCog} />
             <StatCard tone="success" index={1} label="Active" value={String(activeCount)} icon={CheckCircle2} />
             <StatCard tone="danger" index={2} label="Suspended" value={String(suspendedCount)} icon={Ban} />

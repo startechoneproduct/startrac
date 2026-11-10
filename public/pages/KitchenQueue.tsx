@@ -30,7 +30,7 @@ export function KitchenQueue() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1200px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1200px] mx-auto">
       <PageHeader title="Kitchen Queue" subtitle="What's cooking, what's ready — tap a ticket to move it along" />
 
       {loading ? (

@@ -40,7 +40,7 @@ export function SubscriptionsTab({ onOpenAccount }: { onOpenAccount: (id: string
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         <KpiCard icon={TrendingUp} tone="brand" label="Est. monthly recurring" value={compactMoney(data.mrr)} sub="From accounts on a current paid plan" />
         <KpiCard icon={Wallet} tone="success" label="Collected · 30 days" value={compactMoney(data.collected30d)} sub="Subscription payments received" />
         <KpiCard icon={Receipt} tone="neutral" label="Collected · all time" value={compactMoney(data.collectedAll)} sub={`${data.payments.length ? "Latest payments below" : "No payments yet"}`} />
