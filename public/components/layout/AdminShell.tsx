@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, type ComponentType } from "react";
+import { Suspense, useEffect, useRef, useState, type ComponentType } from "react";
+import { SkeletonList } from "@/components/ui/Skeleton";
+import { prefetchPages } from "@/lib/lazyPage";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { LayoutDashboard, Building2, Store, CreditCard, LifeBuoy, ShieldCheck, Users, Activity, LogOut, ArrowUpRight, Search, ChevronDown, ChevronLeft, ChevronRight, Headphones, Menu, X } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
@@ -34,6 +36,8 @@ export function AdminShell() {
   const { session, logout } = useSession();
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  // Signed in: fetch the other pages in the background (see lib/lazyPage.ts).
+  useEffect(() => prefetchPages(), []);
   const [q, setQ] = useState("");
   const [menu, setMenu] = useState(false);
   const [drawer, setDrawer] = useState(false);
@@ -208,7 +212,10 @@ export function AdminShell() {
         </header>
 
         <main className="content-bg flex-1 min-h-0 overflow-y-auto">
-          <Outlet />
+          {/* A tab opened for the first time loads its code; the frame stays put meanwhile. */}
+          <Suspense fallback={<div className="p-4 sm:p-6 lg:p-8 max-w-[1200px] mx-auto"><SkeletonList rows={6} /></div>}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { SkeletonList } from "@/components/ui/Skeleton";
+import { prefetchPages } from "@/lib/lazyPage";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Sparkles } from "lucide-react";
 import { Topbar } from "./Topbar";
@@ -60,6 +62,8 @@ export function AppShell() {
   // A new page starts at its top, not wherever the last one was scrolled to.
   const mainRef = useRef<HTMLElement>(null);
   useEffect(() => { mainRef.current?.scrollTo({ top: 0 }); }, [pathname]);
+  // Signed in: fetch the other pages in the background (see lib/lazyPage.ts).
+  useEffect(() => prefetchPages(), []);
   // The phone drawer closes whenever the page changes, however that happened.
   useEffect(() => setMenuOpen(false), [pathname]);
   // The product tour opens the drawer to point at sidebar items on a phone,
@@ -97,7 +101,11 @@ export function AppShell() {
             {/* Keyed by page so each tab change plays a short fade-in rather
                 than cutting hard from one screen to the next. */}
             <div key={pathname} className="st-page-enter">
-              <PermissionGate><Outlet /></PermissionGate>
+              {/* A page opened for the first time loads its code: the frame
+                  stays put and the page area shows a skeleton meanwhile. */}
+              <Suspense fallback={<div className="p-4 sm:p-6 lg:p-8 max-w-[1200px] mx-auto"><SkeletonList rows={6} /></div>}>
+                <PermissionGate><Outlet /></PermissionGate>
+              </Suspense>
             </div>
           </main>
         </div>
