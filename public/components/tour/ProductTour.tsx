@@ -13,11 +13,32 @@ export type TourStep = {
 };
 
 const TOOLTIP_WIDTH = 316;
+
+/** Window event that opens (detail: true) or closes the phone sidebar drawer. */
+export const SIDEBAR_EVENT = "st:sidebar";
+// Below lg the sidebar is a slide-in drawer, and the tour must open it to
+// point at anything inside it.
+const isDrawerLayout = () => window.innerWidth < 1024;
+const setDrawer = (open: boolean) => window.dispatchEvent(new CustomEvent(SIDEBAR_EVENT, { detail: open }));
+const DRAWER_SLIDE_MS = 340; // a touch longer than the drawer's own slide
+/** The card's width: its usual size, or the screen less a margin on a phone. */
+const cardWidth = () => Math.min(TOOLTIP_WIDTH, window.innerWidth - MARGIN * 2);
 const GAP = 14;
 const MARGIN = 12;
 const PAD = 8; // spotlight padding around the target's own box
 
 function place(rect: DOMRect, placement: TourStep["placement"], height: number) {
+  const width = cardWidth();
+  // Narrow screens: there's no room beside anything, so the card goes below
+  // the target, or above it, or failing both, along the bottom of the screen.
+  if (window.innerWidth < 640) {
+    const below = rect.bottom + GAP;
+    const above = rect.top - GAP - height;
+    const top = below + height <= window.innerHeight - MARGIN ? below
+      : above >= MARGIN ? above
+      : window.innerHeight - height - MARGIN;
+    return { top, left: (window.innerWidth - width) / 2 };
+  }
   let top: number, left: number;
   switch (placement) {
     case "left":
@@ -37,7 +58,7 @@ function place(rect: DOMRect, placement: TourStep["placement"], height: number) 
       left = rect.left + rect.width / 2 - TOOLTIP_WIDTH / 2;
   }
   top = Math.min(Math.max(top, MARGIN), window.innerHeight - height - MARGIN);
-  left = Math.min(Math.max(left, MARGIN), window.innerWidth - TOOLTIP_WIDTH - MARGIN);
+  left = Math.min(Math.max(left, MARGIN), window.innerWidth - width - MARGIN);
   return { top, left };
 }
 
@@ -62,9 +83,11 @@ export function ProductTour({ steps, open, onClose }: { steps: TourStep[]; open:
   const step = steps[index];
   const isCenter = !step || step.target === "center";
 
-  // Reset to the first step every time the tour is (re)opened.
+  // Reset to the first step every time the tour is (re)opened, and on a
+  // phone, put the drawer away again once it ends.
   useEffect(() => {
     if (open) setIndex(0);
+    else if (isDrawerLayout()) setDrawer(false);
   }, [open]);
 
   // Locate the current step's target, scrolling it into view first. Retries
@@ -76,6 +99,7 @@ export function ProductTour({ steps, open, onClose }: { steps: TourStep[]; open:
     setRect(null);
 
     if (step.target === "center") {
+      if (isDrawerLayout()) setDrawer(false);
       setReady(true);
       return;
     }
@@ -84,15 +108,30 @@ export function ProductTour({ steps, open, onClose }: { steps: TourStep[]; open:
     const tryFind = () => {
       if (cancelled) return;
       const el = document.querySelector<HTMLElement>(`[data-tour="${step.target}"]`);
-      if (el) {
-        el.scrollIntoView({ block: "center", behavior: "smooth" });
-        requestAnimationFrame(() =>
-          requestAnimationFrame(() => {
-            if (cancelled) return;
-            setRect(el.getBoundingClientRect());
-            setReady(true);
-          })
-        );
+      // Present but hidden at this screen size (display:none) is as good as missing.
+      if (el && el.getClientRects().length > 0) {
+        // On a phone, sidebar items live in the drawer: open it and let it
+        // slide in before measuring. Anything else: make sure it's shut.
+        const inDrawer = isDrawerLayout() && !!el.closest("aside");
+        if (isDrawerLayout()) setDrawer(inDrawer);
+        const measure = () => {
+          if (cancelled) return;
+          el.scrollIntoView({ block: "center", behavior: inDrawer ? "auto" : "smooth" });
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              if (cancelled) return;
+              setRect(el.getBoundingClientRect());
+              setReady(true);
+            })
+          );
+        };
+        if (inDrawer) setTimeout(measure, DRAWER_SLIDE_MS); else measure();
+      } else if (el) {
+        // Exists but hidden at this screen size (e.g. the search box on a
+        // phone): it isn't going to appear, so move on without the wait.
+        attempts = Infinity;
+        if (index < steps.length - 1) setIndex((i) => i + 1);
+        else onClose();
       } else if (attempts++ < 10) {
         setTimeout(tryFind, 150);
       } else if (!cancelled) {
@@ -153,7 +192,7 @@ export function ProductTour({ steps, open, onClose }: { steps: TourStep[]; open:
   function finish() { onClose(); }
 
   const tooltipPos = isCenter
-    ? { top: window.innerHeight / 2 - cardHeight / 2, left: window.innerWidth / 2 - TOOLTIP_WIDTH / 2 }
+    ? { top: window.innerHeight / 2 - cardHeight / 2, left: window.innerWidth / 2 - cardWidth() / 2 }
     : place(rect!, step.placement || "bottom", cardHeight);
 
   return createPortal(
@@ -175,8 +214,8 @@ export function ProductTour({ steps, open, onClose }: { steps: TourStep[]; open:
 
       <div
         ref={cardRef}
-        className="fixed w-[316px] pop border border-line-2 rounded-card shadow-e2 p-4 animate-fade-in"
-        style={{ top: tooltipPos.top, left: tooltipPos.left }}
+        className="fixed pop border border-line-2 rounded-card shadow-e2 p-4 animate-fade-in"
+        style={{ top: tooltipPos.top, left: tooltipPos.left, width: cardWidth() }}
       >
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="flex items-center gap-1">

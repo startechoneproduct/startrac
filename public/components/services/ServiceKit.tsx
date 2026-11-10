@@ -1,6 +1,7 @@
 import { Banknote, CreditCard, Smartphone } from "lucide-react";
 import { TONES } from "@/components/ui/StatCard";
 import { cn } from "@/lib/utils";
+import { animateSwitch } from "@/lib/viewTransition";
 
 /**
  * Small pieces the three service-business screens (Academy, Appointments,
@@ -67,7 +68,7 @@ export function Tabs<T extends string>({
         {tabs.map((t) => (
           <button
             key={t.key}
-            onClick={() => onChange(t.key)}
+            onClick={() => { if (t.key !== value) animateSwitch("tab", () => onChange(t.key)); }}
             className={cn(
               "px-4 h-9 rounded-lg text-[13px] font-bold whitespace-nowrap transition-colors",
               value === t.key ? "bg-surface text-primary shadow-e1" : "text-t3 hover:text-t1"

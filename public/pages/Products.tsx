@@ -101,7 +101,7 @@ export function Products() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1200px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1200px] mx-auto">
       <PageHeader
         title={term}
         subtitle={`${products.length} in catalog · ${activeBranch?.name || "no branch"} stock shown`}
@@ -118,7 +118,7 @@ export function Products() {
       />
 
       {!loading && products.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-5 mb-6">
           <StatCard index={0} label="Total products" value={String(products.length)} icon={Package} />
           <StatCard tone="success" index={1} label="In stock" value={String(stockStats.inStock)} icon={PackageCheck} />
           <StatCard tone="warning" index={2} label="Low stock" value={String(stockStats.low)} icon={AlertTriangle} />

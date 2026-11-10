@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { api, setToken, setTenant } from "./api";
+import { api, ApiError, getToken, setToken, setTenant } from "./api";
 import { planAllows, PLANS, type PlanKey } from "#shared/plans.js";
 
 export type Business = {
@@ -101,12 +101,28 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   // branch you were in (several screens reload to re-read the session); a fresh
   // sign-in starts on the first business.
   useEffect(() => {
-    const stored = localStorage.getItem("startrack.token");
+    const stored = getToken(); // this tab's own login (see api.ts)
     if (!stored) { setLoading(false); return; }
-    api<Session>("/auth/me")
-      .then((s) => applySession(s, true))
-      .catch(() => setToken(null))
-      .finally(() => setLoading(false));
+    // Only a real "no" from the server (401: expired or invalid login) signs
+    // this tab out. A dropped connection, a busy server or a bad moment on a
+    // phone's signal is retried a few times, and the login is kept even if
+    // they all fail, so the next reload can pick it straight back up.
+    let cancelled = false;
+    (async () => {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const s = await api<Session>("/auth/me");
+          if (!cancelled) applySession(s, true);
+          break;
+        } catch (err) {
+          if (err instanceof ApiError && err.status === 401) { setToken(null); break; }
+          if (attempt >= 3 || cancelled) break;
+          await new Promise((r) => setTimeout(r, 600 * 2 ** attempt)); // 0.6s, 1.2s, 2.4s
+        }
+      }
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   function applySession(s: Session, restore = false) {

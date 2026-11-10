@@ -101,7 +101,7 @@ export function ReceiptDesigner() {
   if (!draft || !preview) return <div className="p-8">{error ? <ErrorBanner message={error} /> : <Spinner />}</div>;
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1180px] mx-auto pb-28">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1180px] mx-auto pb-28">
       <PageHeader title="Receipt designer" subtitle="What your customers see on paper and on WhatsApp" />
       <ErrorBanner message={error} />
       <div className="grid lg:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start">

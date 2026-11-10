@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import { SkeletonList } from "./Skeleton";
 
 // Empty states teach — never a blank white screen.
 export function EmptyState({
@@ -24,12 +25,11 @@ export function EmptyState({
   );
 }
 
-export function Spinner() {
-  return (
-    <div className="flex items-center justify-center py-16">
-      <div className="w-6 h-6 rounded-full border-2 border-line border-t-primary animate-spin" />
-    </div>
-  );
+// The app-wide "still loading" placeholder. It used to be a spinner; it now
+// draws a shimmering skeleton list, so every page that shows it gets the
+// shape of its content up front instead of a blank screen and a sudden pop.
+export function Spinner({ rows }: { rows?: number } = {}) {
+  return <SkeletonList rows={rows} />;
 }
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: React.ReactNode }) {

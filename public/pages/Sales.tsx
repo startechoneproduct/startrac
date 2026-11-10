@@ -44,7 +44,7 @@ const PAGE_SIZE = ROWS_PER_PAGE;
 export function Sales() {
   const { activeBranch } = useSession();
   return (
-    <div className="p-6 lg:p-8 max-w-[1200px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1200px] mx-auto">
       <PageHeader
         title="Sales History"
         subtitle={`${activeBranch?.name || ""} · every sale on record — voided ones stay, flagged`}

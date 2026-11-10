@@ -132,7 +132,7 @@ export function Help() {
   const doneCount = (c.resolved || 0) + (c.closed || 0);
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1000px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1000px] mx-auto">
       <PageHeader
         title="Help from StarTrack"
         subtitle="Ask the StarTrack team for help. Every request gets a reference and you can follow the conversation here."

@@ -154,7 +154,7 @@ export function OverviewTab({ ov, onOpenAccount }: { ov: Overview; onOpenAccount
   const { data: recent } = useApi<Recent>("/platform/accounts?limit=8", []);
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">
       <div className="flex items-end justify-between flex-wrap gap-4 mb-6">
         <div>
           <h1 className="text-[22px] leading-7 font-semibold text-t1">{greeting()}, {ov.viewer.name.split(" ")[0]}</h1>
@@ -247,7 +247,7 @@ function Summary({ ov, days, growth, ins, subs, recent, onOpenAccount }: {
     <>
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 mb-5">
         <VolumeHero growth={growth} days={days} businesses={ov.totals.businesses} />
-        <div className="xl:col-span-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <div className="xl:col-span-5 grid grid-cols-2 gap-3 sm:gap-5">
           <KpiCard icon={Wallet} tone="success" label="Income a month" value={ins ? naira(ins.money.mrr) : "…"} sub={ins ? `${naira(ins.money.collected30d)} collected in 30 days` : undefined} />
           <KpiCard icon={ShoppingCart} tone="neutral" label="Sold today" value={ins ? naira(ins.today.volume) : "…"} sub={ins ? `${ins.today.sales.toLocaleString()} sales in ${ins.today.businesses} ${ins.today.businesses === 1 ? "business" : "businesses"}` : undefined} />
           <KpiCard icon={LogIn} tone="warning" label="Signed in this week" value={ins ? ins.users.signedIn7d.toLocaleString() : "…"} sub={ins ? `of ${ins.users.active.toLocaleString()} people` : undefined} />
@@ -294,7 +294,7 @@ function MoneyView({ subs, ov, onOpenAccount }: { subs: Subs | null; ov: Overvie
   const c = subs.counts;
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-5">
         <KpiCard icon={Wallet} tone="success" label="Income a month" value={naira(subs.mrr)} sub="From accounts paying today" />
         <KpiCard icon={Receipt} tone="brand" label="Collected, 30 days" value={naira(subs.collected30d)} sub={`${naira(subs.collectedAll)} since the start`} />
         <KpiCard icon={CreditCard} tone="neutral" label="Paying accounts" value={c.paid.toLocaleString()} sub={`${c.trialing} on trial, ${c.free} on Freemium`} />
@@ -364,7 +364,7 @@ function TradingView({ days, growth, ins, ov, onOpenAccount }: { days: Range; gr
   const sales = sum(series, (d) => d.txns);
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-5">
         <KpiCard icon={TrendingUp} tone="brand" label={`Sold, last ${days} days`} value={growth ? naira(volume) : "…"} sub="All businesses together" />
         <KpiCard icon={ShoppingCart} tone="neutral" label="Number of sales" value={growth ? sales.toLocaleString() : "…"} sub={growth ? `About ${Math.round(sales / Number(days)).toLocaleString()} a day` : undefined} />
         <KpiCard icon={Receipt} tone="warning" label="Average sale" value={growth ? naira(sales ? volume / sales : 0) : "…"} sub="Per transaction" />
@@ -414,7 +414,7 @@ function SignupsView({ days, growth, ov, recent, onOpenAccount }: { days: Range;
   const best = series.reduce((m, d) => (d.signups > m.signups ? d : m), { date: "", signups: 0 } as { date: string; signups: number });
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-5">
         <KpiCard icon={Building2} tone="brand" label="Customer accounts" value={ov.totals.accounts.toLocaleString()} sub={`${ov.totals.sandboxes} demo shops not counted`} />
         <KpiCard icon={UserPlus} tone="success" label={`Joined, last ${days} days`} value={growth ? joined.toLocaleString() : "…"} sub={growth ? `About ${(joined / Number(days)).toFixed(1)} a day` : undefined} />
         <KpiCard icon={TrendingUp} tone="warning" label="Best day" value={best.signups ? String(best.signups) : "0"} sub={best.signups ? fmtDate(best.date) : "No sign-ups yet"} />
@@ -437,7 +437,7 @@ function BusinessesView({ ov, ins }: { ov: Overview; ins: Insights | null }) {
   const pct = t.businesses ? Math.round((t.activeBusinesses7d / t.businesses) * 100) : 0;
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-5">
         <KpiCard icon={Store} tone="brand" label="Businesses" value={t.businesses.toLocaleString()} sub={`Under ${t.accounts} accounts`} />
         <KpiCard icon={GitBranch} tone="neutral" label="Branches" value={t.branches.toLocaleString()} sub="Shops and outlets" />
         <KpiCard icon={TrendingUp} tone="success" label="Sold in 30 days" value={ins ? ins.businesses.active30d.toLocaleString() : "…"} sub="Businesses with a sale" />
@@ -485,7 +485,7 @@ function PeopleView({ ins }: { ins: Insights | null }) {
   const signedPct = u.active ? Math.round((u.signedIn30d / u.active) * 100) : 0;
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-5">
         <KpiCard icon={Users} tone="brand" label="People with logins" value={u.active.toLocaleString()} sub={`${u.owners} business owners`} />
         <KpiCard icon={LogIn} tone="success" label="Signed in this week" value={u.signedIn7d.toLocaleString()} sub={`${u.signedIn30d} in 30 days`} />
         <KpiCard icon={Hourglass} tone="warning" label="Not seen in 30 days" value={Math.max(0, u.active - u.signedIn30d).toLocaleString()} sub={`${signedPct}% came back this month`} />
@@ -519,7 +519,7 @@ function SupportView({ days }: { days: Range }) {
   const labels = s.series.map((d) => fmtDate(d.date));
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-5">
         <KpiCard icon={Inbox} tone={t.waitingOnUs ? "danger" : "success"} label="Waiting on StarTrack" value={String(t.waitingOnUs)} sub={t.oldestWaitingSince ? `Oldest since ${fmtDateTime(t.oldestWaitingSince)}` : "Nobody is waiting"} />
         <KpiCard icon={LifeBuoy} tone="brand" label="Open requests" value={String(t.open)} sub={`${t.unassigned} not assigned yet`} />
         <KpiCard icon={Clock} tone="warning" label="Typical first reply" value={hrs(t.medianFirstResponseHours)} sub={t.answeredWithin24hPct == null ? "No replies yet" : `${t.answeredWithin24hPct}% answered within a day`} />

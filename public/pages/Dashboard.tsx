@@ -15,6 +15,7 @@ import { AiText, TypingDots } from "@/components/ai/AiBits";
 import { StatCard, DeltaChip } from "@/components/ui/StatCard";
 import { Table, TR, TH, TD } from "@/components/ui/Table";
 import { EmptyState, Spinner } from "@/components/ui/EmptyState";
+import { DashboardSkeleton } from "@/components/ui/Skeleton";
 import { ProductTour, tourSeen, markTourSeen } from "@/components/tour/ProductTour";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
@@ -26,6 +27,7 @@ import { SalesHistoryView } from "@/pages/Sales";
 import { fmtMoney, fmtTime, fmtDate, fmtDateTime, todayStr } from "@/lib/format";
 import { LockedPage } from "@/components/plan/PlanUi";
 import { cn } from "@/lib/utils";
+import { animateSwitch } from "@/lib/viewTransition";
 
 const DASHBOARD_TOUR_KEY = "dashboard-v1";
 
@@ -93,7 +95,7 @@ export function Dashboard() {
   }
 
   if (loading && !m) {
-    return <div className="p-8"><Spinner /></div>;
+    return <DashboardSkeleton />;
   }
   if (!m) {
     return (
@@ -109,7 +111,7 @@ export function Dashboard() {
   const series = m.series7d.map((s) => ({ d: dayLabel(s.date), v: s.revenue }));
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">
       {web?.storeEnabled && web.waiting > 0 && (
         <Link to="/app/orders" className="mb-5 flex items-center gap-3 rounded-card border border-warning/30 bg-warning-soft px-5 py-3.5 hover:brightness-95 transition">
           <span className="grid place-items-center w-9 h-9 rounded-xl bg-warning text-white"><ShoppingBag className="w-[18px] h-[18px]" /></span>
@@ -151,18 +153,27 @@ export function Dashboard() {
         ] as { k: Tab; label: string; icon: any }[]).map(({ k, label, icon: Icon }) => (
           <button
             key={k}
-            onClick={() => setTab(k)}
+            onClick={(e) => {
+              // On a phone the row scrolls sideways: bring the chosen tab into the middle.
+              e.currentTarget.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+              if (k !== tab) animateSwitch("tab", () => setTab(k));
+            }}
             className={cn(
-              "flex items-center gap-1.5 px-3 h-10 -mb-px border-b-2 text-[13px] font-medium transition-colors whitespace-nowrap",
-              tab === k ? "border-primary text-t1" : "border-transparent text-t3 hover:text-t1"
+              "relative flex items-center gap-1.5 px-3 h-10 -mb-px text-[13px] font-medium transition-colors whitespace-nowrap",
+              tab === k ? "text-t1" : "text-t3 hover:text-t1"
             )}
           >
+            {/* Its own element so a tab change can slide it across (index.css). */}
+            {tab === k && <span aria-hidden className="st-vt-tabbar absolute inset-x-0 bottom-0 h-0.5 bg-primary" />}
             <Icon className="w-4 h-4 text-t4" strokeWidth={1.75} /> {label}
             {TAB_FEATURE[k] && !hasFeature(TAB_FEATURE[k]!) && <Lock className="w-3 h-3 text-t4" />}
           </button>
         ))}
       </div>
 
+      {/* The tab's content: on a tab change it lifts away and the next one
+          rises into place (index.css), while the header and tabs stay put. */}
+      <div className="st-vt-tabpanel">
       {TAB_FEATURE[tab] && !hasFeature(TAB_FEATURE[tab]!) ? <LockedPage feature={TAB_FEATURE[tab]!} /> : (
         <>
           {tab === "profit" && <ProfitTab currency={currency} branchKey={activeBranch?.id} />}
@@ -188,7 +199,7 @@ export function Dashboard() {
           currency={currency}
           className="xl:col-span-7"
         />
-        <div className="xl:col-span-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <div className="xl:col-span-5 grid grid-cols-2 sm:grid-cols-2 gap-3 sm:gap-5">
           {showProfit && (
             <StatCard tone={m.today.profit! < 0 ? "danger" : "success"} label="Net profit" value={fmtMoney(m.today.profit!, currency)}
               icon={TrendingUp} change={m.today.deltas.profit ?? 0} hint="after expenses" />
@@ -203,7 +214,7 @@ export function Dashboard() {
       {/* Detail on the left, things wanting attention on the right. */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <div className="xl:col-span-2 space-y-4">
-          <TopMovingProducts products={m.topProducts} currency={currency} onViewAll={() => setTab("inventory")} />
+          <TopMovingProducts products={m.topProducts} currency={currency} onViewAll={() => animateSwitch("tab", () => setTab("inventory"))} />
           <LiveFeed sales={m.recentSales} currency={currency} />
         </div>
 
@@ -214,6 +225,7 @@ export function Dashboard() {
       </div>
       </>
       )}
+      </div>
       <ProductTour steps={buildDashboardTour(typeMeta(activeBusiness?.typeKey))} open={tourOpen} onClose={closeTour} />
     </div>
   );
@@ -542,7 +554,7 @@ function SalesTab({ currency, branchKey }: { currency: string; branchKey?: strin
 
   return (
     <div className="space-y-5">
-      <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-5", showProfit ? "xl:grid-cols-4" : "xl:grid-cols-3")}>
+      <div className={cn("grid grid-cols-2 sm:grid-cols-2 gap-3 sm:gap-5", showProfit ? "xl:grid-cols-4" : "xl:grid-cols-3")}>
         <StatCard label={`Revenue · ${r.days} days`} value={fmtMoney(r.totals.revenue, currency)} icon={Wallet} spark={r.series.map((s) => s.revenue)} />
         <StatCard tone="neutral" label="Transactions" value={String(r.totals.txns)} icon={ShoppingCart} hint={`over ${r.days} days`} />
         <StatCard tone="warning" label="Average sale" value={fmtMoney(r.totals.avgSale, currency)} icon={Receipt} hint="per transaction" />
@@ -619,7 +631,7 @@ function ExpensesTab({ currency, branchKey }: { currency: string; branchKey?: st
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+      <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-5">
         <StatCard tone="danger" label="Spent this month" value={fmtMoney(r.total, currency)} icon={ReceiptText} />
         <StatCard tone="neutral" label="Entries" value={String(r.expenses.length)} icon={Receipt} hint="recorded this month" />
         <StatCard tone="warning" label={biggest ? `Biggest: ${biggest[0]}` : "Biggest category"} value={biggest ? fmtMoney(biggest[1], currency) : "—"} icon={TrendingUp} />
@@ -763,7 +775,7 @@ function ExpiryTab({ branchKey }: { branchKey?: string }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+      <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-5">
         <StatCard tone="danger" label="Already expired" value={String(expired.length)} icon={AlertTriangle} hint="still in stock" />
         <StatCard tone="warning" label="Expiring within 30 days" value={String(soon.length)} icon={CalendarClock} hint="sell or move these first" />
       </div>
@@ -805,7 +817,7 @@ function CustomersTab({ currency, branchKey }: { currency: string; branchKey?: s
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-5">
         <StatCard label="Customers on file" value={String(r.totals.customers)} icon={Users} />
         <StatCard tone="success" label="New · last 30 days" value={String(r.totals.newLast30)} icon={Users} hint="first-time customers" />
         <StatCard tone="neutral" label="Active · last 30 days" value={String(r.totals.activeLast30)} icon={ShoppingCart} hint="bought recently" />
@@ -872,7 +884,7 @@ function StaffTab({ currency, branchKey }: { currency: string; branchKey?: strin
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-5">
         <StatCard label="Team with activity" value={String(r.staff.length)} icon={UserCog} hint={`last ${r.days} days`} />
         <StatCard tone="success" label="Revenue rung up" value={fmtMoney(totalRevenue, currency)} icon={Wallet} hint={`${totalSales} sales`} />
         <StatCard tone="neutral" label="Hours worked" value={totalHours ? `${totalHours.toFixed(1)}h` : "—"} icon={CalendarClock} hint="clocked in" />
@@ -942,7 +954,7 @@ function InventoryTab({ currency, branchKey }: { currency: string; branchKey?: s
 
   return (
     <div className="space-y-5">
-      <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-5", showCost ? "xl:grid-cols-4" : "xl:grid-cols-3")}>
+      <div className={cn("grid grid-cols-2 sm:grid-cols-2 gap-3 sm:gap-5", showCost ? "xl:grid-cols-4" : "xl:grid-cols-3")}>
         <StatCard label="Products in catalog" value={String(r.skus)} icon={Boxes} />
         <StatCard tone="neutral" label="Units on shelf" value={r.units.toLocaleString()} icon={Package} hint={`${r.turnover}× turnover`} />
         <StatCard tone="warning" label="Stock value (retail)" value={fmtMoney(r.retailValue, currency)} icon={Wallet} />
@@ -1127,7 +1139,7 @@ function ProfitTab({ currency, branchKey }: { currency: string; branchKey?: stri
     <div className="space-y-5">
       {picker}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-5">
         <StatCard label="Sales" value={money(c.revenue)} icon={Wallet} change={changePct(c.revenue, p.revenue)} hint={`${c.txns} ${c.txns === 1 ? "sale" : "sales"}`} />
         <StatCard tone="warning" label="Cost of goods sold" value={money(c.cogs)} icon={Package} hint="cost of the items sold" />
         <StatCard tone="danger" label="Expenses" value={money(c.expenses + c.waste)} icon={ReceiptText} hint={c.waste ? `includes ${money(c.waste)} waste` : "rent, fuel, salaries and more"} />

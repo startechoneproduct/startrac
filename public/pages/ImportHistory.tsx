@@ -37,7 +37,7 @@ export function ImportHistory() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-[960px] mx-auto space-y-5">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[960px] mx-auto space-y-5">
       <PageHeader
         title="Import past sales"
         subtitle="Bring in your sales from before StarTrack, so your reports and customer book start with your real history"

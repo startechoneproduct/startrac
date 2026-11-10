@@ -27,7 +27,7 @@ export function Activity() {
   const total = sales.filter((s) => s.status === "completed").reduce((sum, s) => sum + s.total, 0);
 
   return (
-    <div className="p-6 lg:p-8 max-w-[900px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[900px] mx-auto">
       <PageHeader
         title="My Activity"
         subtitle="Your own sales — what you rang up, when"

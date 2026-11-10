@@ -15,6 +15,7 @@ import { useApi } from "@/lib/useApi";
 import { useSession } from "@/lib/session";
 import { fmtMoney, fmtDate, todayStr } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { animateSwitch } from "@/lib/viewTransition";
 
 type StockRow = {
   productId: string; name: string; category: string;
@@ -54,7 +55,7 @@ export function ColdRoom() {
   const openRow = rows.find((r) => r.productId === openProductId) || null;
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1200px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1200px] mx-auto">
       <PageHeader
         title="Cold Room"
         subtitle="Cartons in, kilograms and pieces out — with the shrinkage between them tracked honestly"
@@ -68,7 +69,7 @@ export function ColdRoom() {
       />
 
       {summaryData && (
-        <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6", hasCapability("credit") ? "xl:grid-cols-5" : "xl:grid-cols-4")}>
+        <div className={cn("grid grid-cols-2 sm:grid-cols-2 gap-3 sm:gap-5 mb-6", hasCapability("credit") ? "xl:grid-cols-5" : "xl:grid-cols-4")}>
           <StatCard index={0} label="Stock value" value={fmtMoney(summaryData.stockValue, currency)} icon={Coins} />
           <StatCard tone="neutral" index={1} label="Sealed cartons" value={String(summaryData.sealedCartons)} icon={Boxes} />
           <StatCard tone="neutral" index={2} label="Loose kg on hand" value={`${summaryData.looseKg}kg`} icon={Scale} />
@@ -263,7 +264,7 @@ function ProductModal({
               {visibleTabs.map((t) => (
                 <button
                   key={t.key}
-                  onClick={() => setTab(t.key)}
+                  onClick={() => animateSwitch("tab", () => setTab(t.key))}
                   className={cn(
                     "flex-1 h-8 px-2 rounded-md text-[12px] font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap transition-colors",
                     tab === t.key ? "bg-surface text-t1 shadow-e1" : "text-t3 hover:text-t1"

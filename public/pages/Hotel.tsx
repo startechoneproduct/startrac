@@ -67,7 +67,7 @@ export function Hotel() {
   const { data, loading, reload } = useApi<Grid>(`/hotel/availability?from=${from}&nights=${nights}`, [activeBranch?.id]);
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">
       <PageHeader
         title="Front Desk"
         subtitle={`${activeBranch?.name || ""} · rooms are occupied across dates, never sold off a shelf`}

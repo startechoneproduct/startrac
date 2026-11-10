@@ -189,6 +189,190 @@
 @keyframes st-fade-in { from { opacity: 0; } to { opacity: 1; } }
 .animate-fade-up { animation: st-fade-up 0.26s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 .animate-fade-in { animation: st-fade-in 0.2s ease both; }
+
+/* Page change inside the app: a short fade and lift instead of a hard cut. */
+@keyframes st-page-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+/* `backwards`, not `both`: once it finishes no transform is left behind, so
+   position:fixed modals inside the page still anchor to the viewport. */
+.st-page-enter { animation: st-page-in 0.28s cubic-bezier(0.22, 0.8, 0.24, 1) backwards; }
+
+/* ── Dropdown lists ──────────────────────────────────────────────────────
+   An open <select> list is normally drawn by the browser in its own (often
+   larger) type, so every dropdown looked a size bigger than the app around
+   it. Where the browser allows styling it (Chrome / Edge, desktop and
+   Android), the list matches the app: 13px rows in a rounded panel, in the
+   theme's colours. Other browsers keep their native list. The closed box
+   is unchanged: the native arrow stays hidden, as before (the fields are
+   appearance-none, and a few draw their own chevron). */
+@supports (appearance: base-select) {
+  select, select::picker(select) { appearance: base-select; }
+  /* Styled this way the closed box lays out like a button: keep its text
+     vertically centred, as the native one was. */
+  select { display: inline-flex; align-items: center; }
+  select::picker-icon { display: none; }
+  select::picker(select) {
+    margin-top: 4px;
+    padding: 4px;
+    max-height: min(320px, 50dvh);
+    border: 1px solid var(--st-border-2);
+    border-radius: 12px;
+    background: var(--st-surface);
+    box-shadow: var(--st-shadow-2);
+    font: inherit;
+  }
+  select option {
+    display: flex; align-items: center; gap: 8px;
+    min-height: 32px; padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 13px; font-weight: 500; line-height: 1.35;
+    color: var(--st-text-1); background: transparent;
+    cursor: pointer;
+  }
+  select option:hover, select option:focus-visible { background: var(--st-surface-2); outline: none; }
+  select option:checked { background: var(--st-primary-soft); color: var(--st-primary); font-weight: 600; }
+  select option::checkmark { display: none; }
+  select option:disabled { color: var(--st-text-4); cursor: default; }
+  select optgroup { font-size: 11.5px; font-weight: 600; color: var(--st-text-3); padding: 6px 10px 2px; }
+}
+
+/* ── Filter bars on a phone ──────────────────────────────────────────────
+   Search boxes and dropdowns in a wrapping row are given fixed desktop
+   widths (!w-44, !w-64…), which leaves ragged half-empty rows on a phone.
+   Here they share each row evenly and grow to fill it instead. Inside the
+   utilities layer on purpose: a page's own !w-* is important, and only a
+   rule in the same layer (with higher specificity) can outrank it. */
+@layer utilities {
+  @media (max-width: 639.98px) {
+    main .flex-wrap > :is(select, input:not([type="checkbox"]):not([type="radio"]):not([type="file"])),
+    main .flex-wrap > .relative:has(> input:not([type="checkbox"]), > select) {
+      flex: 1 1 9.5rem !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      margin-left: 0 !important;
+    }
+    main .flex-wrap > .relative:has(> input:not([type="checkbox"]), > select) > :is(input, select) {
+      width: 100% !important;
+    }
+  }
+}
+
+/* ── Tables on a phone (lib/stackTables.ts labels the cells) ──────────────
+   Each row becomes a card: the first cell is its title, every other cell a
+   "Label … value" line. Unlayered on purpose, so it outranks the cells'
+   own padding and alignment utilities without needing !important. */
+@media (max-width: 639.98px) {
+  table[data-stack] { display: block; width: 100%; min-width: 0; }
+  table[data-stack] thead { display: none; }
+  table[data-stack] tbody, table[data-stack] tfoot { display: block; }
+  table[data-stack] tr { display: block; padding: 12px 16px; border-bottom: 1px solid var(--st-border); }
+  table[data-stack] tbody tr:last-child, table[data-stack] tfoot tr:last-child { border-bottom: 0; }
+  table[data-stack] td, table[data-stack] tbody th {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 3px 0; border: 0; text-align: right; white-space: normal; min-width: 0; width: auto; max-width: none;
+  }
+  table[data-stack] td::before {
+    content: attr(data-label);
+    flex-shrink: 0; max-width: 45%;
+    text-align: left; font-size: 12px; font-weight: 500; color: var(--st-text-3);
+  }
+  /* Unlabelled columns (row actions, checkboxes) just sit at the end. */
+  table[data-stack] td[data-label=""] { justify-content: flex-end; }
+  table[data-stack] td[data-label=""]::before { content: none; }
+  /* The first cell is the card's title. */
+  table[data-stack] tr > :first-child { justify-content: flex-start; text-align: left; font-weight: 600; padding-bottom: 6px; }
+  table[data-stack] tr > :first-child::before { content: none; }
+  /* A cell spanning the whole row ("Nothing here yet", a total) stays one block. */
+  table[data-stack] td[colspan] { display: block; text-align: left; }
+  table[data-stack] td[colspan]::before { content: none; }
+  /* Wide tables are usually wrapped to scroll sideways; stacked, they no longer need to. */
+  .overflow-x-auto:has(> table[data-stack]) { overflow-x: visible; }
+}
+
+/* ── Page-change animation (View Transitions) ────────────────────────────
+   On browsers that support it, every in-app navigation runs as a view
+   transition (wired in main.tsx): the page area fades out and lifts away,
+   then the next page fades in and rises into place, while the sidebar's
+   highlight glides to the new item. The plain fade above is then redundant. */
+@supports (view-transition-name: none) {
+  .st-page-enter { animation: none; }
+}
+/* Named only while a transition runs: a view-transition-name also makes the
+   page area a stacking context, which at rest would let the sidebar paint
+   over full-screen overlays (POS, drawers) that live inside the page. */
+:root:active-view-transition:not([data-vt]) .st-vt-page { view-transition-name: st-page; }
+.st-vt-subpill { view-transition-name: st-nav-sub; }
+
+@keyframes st-vt-out { to { opacity: 0; transform: translateY(-10px) scale(0.995); } }
+@keyframes st-vt-in { from { opacity: 0; transform: translateY(14px) scale(0.995); } }
+
+::view-transition-group(st-page) { animation-duration: 0.42s; }
+::view-transition-old(st-page) {
+  animation: st-vt-out 0.18s cubic-bezier(0.4, 0, 1, 1) both;
+}
+::view-transition-new(st-page) {
+  animation: st-vt-in 0.34s cubic-bezier(0.22, 0.8, 0.24, 1) 0.08s both;
+}
+::view-transition-group(st-nav-sub) {
+  animation-duration: 0.34s;
+  animation-timing-function: cubic-bezier(0.22, 0.8, 0.24, 1);
+}
+/* Page change and dialog close: the frame (sidebar, top bar) switches
+   instantly. Cross-fading it ghosts the top bar, whose buttons shift on some
+   pages. Only the named pieces (page area, highlights, dialog) move. */
+:root:not([data-vt="tab"])::view-transition-old(root) { display: none; }
+:root:not([data-vt="tab"])::view-transition-new(root) { animation: none; }
+
+/* ── In-page switches (lib/viewTransition.ts sets <html data-vt>) ──────── */
+
+/* Tabs: the whole screen cross-fades. Whatever didn't change stays perfectly
+   still and only the new content blends in; that also covers tabs inside a
+   dialog. The dashboard's underline slides across to the new tab. */
+:root[data-vt="tab"]::view-transition-old(root),
+:root[data-vt="tab"]::view-transition-new(root) {
+  animation-duration: 0.3s;
+  animation-timing-function: cubic-bezier(0.22, 0.8, 0.24, 1);
+}
+:root[data-vt="tab"] .st-vt-tabbar { view-transition-name: st-tab-bar; }
+
+/* A tab panel (the dashboard's) gets the same motion as a page change: the
+   old tab's content lifts away and the new one rises into place. */
+:root[data-vt="tab"] .st-vt-tabpanel { view-transition-name: st-tabpanel; }
+::view-transition-old(st-tabpanel) { animation: st-vt-out 0.18s cubic-bezier(0.4, 0, 1, 1) both; }
+::view-transition-new(st-tabpanel) { animation: st-vt-in 0.34s cubic-bezier(0.22, 0.8, 0.24, 1) 0.08s both; }
+::view-transition-group(st-tabpanel) { animation-duration: 0.42s; }
+/* Whatever lands in the panel fades in, including the real content arriving
+   in place of its loading skeleton, so it never just pops. Opacity only: a
+   leftover transform would trap fixed-position overlays inside the panel. */
+.st-vt-tabpanel > * { animation: st-fade-in 0.3s ease backwards; }
+::view-transition-group(st-tab-bar) {
+  animation-duration: 0.32s;
+  animation-timing-function: cubic-bezier(0.22, 0.8, 0.24, 1);
+}
+
+/* Dialog closing: it shrinks and fades away while its dimmed backdrop lifts. */
+:root[data-vt="modal"] [data-vt-closing] .st-modal-panel { view-transition-name: st-modal; }
+:root[data-vt="modal"] [data-vt-closing] .st-modal-backdrop { view-transition-name: st-modal-bg; }
+@keyframes st-modal-out { to { opacity: 0; transform: translateY(8px) scale(0.96); } }
+@keyframes st-fade-out { to { opacity: 0; } }
+::view-transition-old(st-modal) { animation: st-modal-out 0.2s cubic-bezier(0.4, 0, 1, 1) both; }
+::view-transition-old(st-modal-bg) { animation: st-fade-out 0.22s ease both; }
+
+/* Dialog opening: the backdrop fades in and the panel rises and grows into place. */
+@keyframes st-modal-in { from { opacity: 0; transform: translateY(14px) scale(0.96); } }
+.st-modal-backdrop { animation: st-fade-in 0.22s ease both; }
+.st-modal-panel { animation: st-modal-in 0.3s cubic-bezier(0.22, 0.8, 0.24, 1) backwards; }
+
+/* Skeleton loaders: a soft band of light sweeping across a muted block. */
+@keyframes st-shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+.st-skel {
+  /* Tinted from the text colour so it reads on cards and on the page
+     background alike, in both light and dark themes. */
+  background-color: color-mix(in srgb, var(--st-text-1) 8%, transparent);
+  background-image: linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--st-surface) 70%, transparent) 50%, transparent 100%);
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: st-shimmer 1.4s ease-in-out infinite;
+}
 .st-grid-bg {
   background-image:
     linear-gradient(var(--st-border) 1px, transparent 1px),
